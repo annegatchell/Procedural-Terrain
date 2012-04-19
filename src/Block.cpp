@@ -5,6 +5,10 @@
 
 using namespace std;
 
+void Block::Block(){
+		
+}
+
 void Block::setIsEmpty(bool empty){
 	isEmpty = empty;
 	

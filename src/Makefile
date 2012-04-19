@@ -1,5 +1,5 @@
 #  Executables
-EX=main
+#EX=main
 
 #  Libraries - Linux
 LIBS=-lglut -lGLU
@@ -9,7 +9,11 @@ LIBS=-lglut -lGLU
 #LIBS=-lglut32cu -lglu32 -lopengl32
 
 #  Main target
-all: $(EX)
+#all: $(EX)
+#  Executables
+main:main.o Cell.o Block.o CSCIx239.a
+	g++ -Wall -O3 -o $@ $^ -lglut -lGLU
+
 
 #  Generic compile rules
 .c.o:

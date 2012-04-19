@@ -17,6 +17,7 @@ private:
 	bool isEmpty;
 	
 public: 
+	Block();
 	void setIsEmpty(bool empty);
 	bool getIsEmpty();
 };
