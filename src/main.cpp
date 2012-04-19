@@ -13,19 +13,25 @@
 
 using namespace std;
 
-int N=1024;       //  Number of bodies
-int src=0;        //  Offset of first star in source
-int dst=0;        //  Offset of first star in destination
 int axes=0;       //  Display axes
 int th=0;         //  Azimuth of view angle
 int ph=0;         //  Elevation of view angle
 double dim=10;    //  Size of universe
-double vel=0.1;   //  Relative speed
-int mode=0;       //  Solver mode
+int mode=0;       //  Mode
 int shader=0;     //  Shader
-char* text[] = {"Sequential","OpenMP","OpenMP+Geometry Shader"};
+char* text[] = {"Terrain"};
 
+Block* singleBlock = new Block();
 
+/*
+ * Function to use a frag shader to get all the values at the corners of
+ * all the cells in the given block.
+ * Uses ARB_draw_instanced to draw 33 instances of two triangles that
+ * cover up the Rnder Portal.
+ */
+ void generateDensityValuesForBlock(Block block){
+	 
+}
 
 /*
  *  OpenGL (GLUT) calls this routine to display the scene
@@ -110,7 +116,7 @@ void key(unsigned char ch,int x,int y)
       exit(0);
    //  Cycle modes
    else if (ch == 'm')
-      mode = (mode+1)%3;
+      mode = (mode+1)%1;
    //  Reset view angle
    else if (ch == '0')
       th = ph = 0;
