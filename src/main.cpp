@@ -13,13 +13,19 @@
 
 using namespace std;
 
-int axes=0;       //  Display axes
+double asp=1;       //  Aspect ratio
+int axes=1;       //  Display axes
 int th=0;         //  Azimuth of view angle
 int ph=0;         //  Elevation of view angle
 double dim=10;    //  Size of universe
 int mode=0;       //  Mode
 int shader=0;     //  Shader
+int densityShader=0; //Shader for the density function
 char* text[] = {"Terrain"};
+int program[2];
+unsigned int densityTexture; //3d density texture
+
+GLuint VBOid[1];
 
 Block* singleBlock = new Block();
 
@@ -30,7 +36,22 @@ Block* singleBlock = new Block();
  * cover up the Rnder Portal.
  */
  void generateDensityValuesForBlock(Block block){
+	 glLoadIdentity();
 	 
+	 int instanceCount = 33;
+	 
+	 const GLfloat portalTriangles[6][2] = {
+		 { 0.0, 0.0},   /*index 0*/
+		 { 0.0, 1.0},   /*index 1*/
+		 { 1.0, 0.0},   /*index 2*/
+		 { 0.0, 1.0},
+		 { 1.0, 1.0},
+		 { 1.0, 0.0} }; 
+	 //const GLubyte indices[6] = {0, 1, 2,  1, 2, 3};
+	 glGenBuffersARB(1, &VBOid[0]);
+	 glBindBufferARB(GL_ARRAY_BUFFER_ARB, VBOid[0]);
+	 glBufferDataARB(GL_ARRAY_BUFFER, 6*sizeof(GLfloat), portalTriangles, GL_STATIC_DRAW_ARB);
+	 glDrawElementsInstanced(GL_TRIANGLE_STRIP,6,GL_UNSIGNED_SHORT, 0, instanceCount);
 }
 
 /*
@@ -38,19 +59,59 @@ Block* singleBlock = new Block();
  */
 void display()
 {
+
+    
    const double len=2.5;  //  Length of axes
    double Ex = -2*dim*Sin(th)*Cos(ph);
    double Ey = +2*dim        *Sin(ph);
-   double Ez = +2*dim*Cos(th)*Cos(ph);
+   double Ez = +2*dim*Cos(th)*Cos (ph);
 
    //  Erase the window and the depth buffer
    glClear(GL_COLOR_BUFFER_BIT);
    //  Undo previous transformations
    glLoadIdentity();
+   Project(0,asp,1.0);
+   
+   //Set Up for Drawing
+   glColor3f(1,1,1);
+   glEnable(GL_TEXTURE_3D);
+   
+   //  Set Density Shader
+   glUseProgram(densityShader);
+   int id = glGetUniformLocation(densityShader,"density");
+   if (id>=0) glUniform1i(id,0);
+   
+   //Draw shader pass to the triangles
+   glBindTexture(GL_TEXTURE_3D, densityTexture);
+   
+   id = glGetUniformLocation(densityShader, "x");
+   if(id >=0) glUniform1f(id, 0);
+   id = glGetUniformLocation(densityShader, "y");
+   if(id >=0) glUniform1f(id, 0);
+   id = glGetUniformLocation(densityShader, "z");
+   if(id >=0) glUniform1f(id, 0);
+   
+   generateDensityValuesForBlock(*singleBlock);
+   //  Redraw the texture
+   /*   glClear(GL_COLOR_BUFFER_BIT);
+      glBegin(GL_QUADS);
+      glTexCoord3f(0,0,0); glVertex2f(-1,-1);
+      glTexCoord3f(0,1,0); glVertex2f(-1,+1);
+      glTexCoord3f(1,1,0); glVertex2f(+1,+1);
+      glTexCoord3f(1,0,0); glVertex2f(+1,-1);
+      glEnd();*/
+     // glPopMatrix();
+      
+   glDisable(GL_TEXTURE_2D);
+
+   //  Shader off
+   glUseProgram(0);
+   
+   
    //  Perspective - set eye position
    gluLookAt(Ex,Ey,Ez , 0,0,0 , 0,Cos(ph),0);
 
-
+  
    //  Draw axes
    glDisable(GL_LIGHTING);
    glColor3f(1,1,1);
@@ -178,6 +239,32 @@ int CreateShaderProgGeom()
    return prog;
 }
 
+int CreateShaderProgGeom(int progNum, char* vertexShader, char* geometryShader, char* geometryShaderExt, char* fragShader){
+	//Create program
+	program[progNum] = glCreateProgram();
+	//Compile and add shaders
+	CreateShader(program[progNum],GL_VERTEX_SHADER, vertexShader);
+	#ifdef __APPLE__
+   //  OpenGL 3.1 for OSX
+   CreateShader(program[progNum],GL_GEOMETRY_SHADER_EXT,geometryShaderExt);
+   glProgramParameteriEXT(program[progNum],GL_GEOMETRY_INPUT_TYPE_EXT  ,GL_POINTS);
+   glProgramParameteriEXT(program[progNum],GL_GEOMETRY_OUTPUT_TYPE_EXT ,GL_TRIANGLE_STRIP);
+   glProgramParameteriEXT(program[progNum],GL_GEOMETRY_VERTICES_OUT_EXT,4);
+	#else
+   //  OpenGL 3.2 adds layout ()
+   CreateShader(program[progNum],GL_GEOMETRY_SHADER, geometryShader);
+	#endif
+   CreateShader(program[progNum],GL_FRAGMENT_SHADER, fragShader);
+   //  Link program
+   glLinkProgram(program[progNum]);
+   //  Check for errors
+   PrintProgramLog(program[progNum]);
+   //  Return name
+   return program[progNum];
+	
+	
+}
+
 /*
  *  Start up GLUT and tell it what to do
  */
@@ -188,18 +275,21 @@ int main(int argc,char* argv[])
    //  Request double buffered, true color window with Z buffering at 600x600
    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
    glutInitWindowSize(600,600);
-   glutCreateWindow("Nbody Simulator");
+   glutCreateWindow("Badass Textures");
    //  Set callbacks
    glutDisplayFunc(display);
    glutReshapeFunc(reshape);
    glutSpecialFunc(special);
    glutKeyboardFunc(key);
    glutIdleFunc(idle);
+   //3d texture to store density values
+   glGenTextures(1,&densityTexture);
+   glBindTexture(GL_TEXTURE_3D,densityTexture);
+   
    //  Shader program
-  // shader = CreateShaderProgGeom();
-   //ErrCheck("init");
-   //  Star texture
-   LoadTexBMP("star.bmp");
+   // shader = CreateShaderProgGeom();
+   densityShader = CreateShaderProgGeom(0,"density.vert","density.geom", "density.geom_ext","density.frag");
+   ErrCheck("init");
    //  Pass control to GLUT so it can interact with the user
    glutMainLoop();
    return 0;
