@@ -1,0 +1,29 @@
+Anne Gatchell 
+Project Review
+
+
+compile with make
+run with ./main
+
+The only thing that comes up is a white window, because I am currently just
+working on getting the density function to run in the fragment shader and
+write density values into a 3D texture. This render pass is not the final
+pass.
+
+The next render pass must go through the Marching Cubes algorithm, looking
+in the lookup table using the values of the density at the corners. 
+
+So, I need to get my 3d texture to work, and then I need to do the second 
+render pass.
+
+Given how hard it has been to get things to go right with the density function,
+I am a little concerned about the rest of the project. I am having issues with
+Geometry Shaders.
+
+I will be very happy if I can get to the point where i can render a block
+(and all voxels within it) with an interesting terrain. I guess Dane and 
+his friend were trying this approach and they couldn't get it working. I
+really want to get it working, even if in an inefficient state. I don't want
+to use the CPU to generate the terrain.
+
+

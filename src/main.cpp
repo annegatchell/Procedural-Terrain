@@ -1,11 +1,4 @@
-/*
- *  Nbody Simulator
- *  This program requires OpenGL 3.2 or above
- *
- *  'a' to toggle axes
- *  '0' snaps angles to 0,0
- *  arrows to rotate the world
- */
+
  
 #include "CSCIx239.h"
 #include "Block.h"
@@ -24,6 +17,7 @@ int densityShader=0; //Shader for the density function
 char* text[] = {"Terrain"};
 int program[2];
 unsigned int densityTexture; //3d density texture
+
 
 GLuint VBOid[1];
 
@@ -59,8 +53,6 @@ Block* singleBlock = new Block();
  */
 void display()
 {
-
-    
    const double len=2.5;  //  Length of axes
    double Ex = -2*dim*Sin(th)*Cos(ph);
    double Ey = +2*dim        *Sin(ph);
@@ -92,15 +84,17 @@ void display()
    if(id >=0) glUniform1f(id, 0);
    
    generateDensityValuesForBlock(*singleBlock);
+   
    //  Redraw the texture
-   /*   glClear(GL_COLOR_BUFFER_BIT);
+      glClear(GL_COLOR_BUFFER_BIT);
       glBegin(GL_QUADS);
       glTexCoord3f(0,0,0); glVertex2f(-1,-1);
       glTexCoord3f(0,1,0); glVertex2f(-1,+1);
       glTexCoord3f(1,1,0); glVertex2f(+1,+1);
       glTexCoord3f(1,0,0); glVertex2f(+1,-1);
-      glEnd();*/
+      glEnd();
      // glPopMatrix();
+     
       
    glDisable(GL_TEXTURE_2D);
 
@@ -239,28 +233,29 @@ int CreateShaderProgGeom()
    return prog;
 }
 
-int CreateShaderProgGeom(int progNum, char* vertexShader, char* geometryShader, char* geometryShaderExt, char* fragShader){
+int CreateShaderProgGeom1(char* vertexShader, char* geometryShader, char* geometryShaderExt, char* fragShader){
 	//Create program
-	program[progNum] = glCreateProgram();
+	int prog = glCreateProgram();
 	//Compile and add shaders
-	CreateShader(program[progNum],GL_VERTEX_SHADER, vertexShader);
+	CreateShader(prog,GL_VERTEX_SHADER, vertexShader);
 	#ifdef __APPLE__
    //  OpenGL 3.1 for OSX
-   CreateShader(program[progNum],GL_GEOMETRY_SHADER_EXT,geometryShaderExt);
-   glProgramParameteriEXT(program[progNum],GL_GEOMETRY_INPUT_TYPE_EXT  ,GL_POINTS);
-   glProgramParameteriEXT(program[progNum],GL_GEOMETRY_OUTPUT_TYPE_EXT ,GL_TRIANGLE_STRIP);
-   glProgramParameteriEXT(program[progNum],GL_GEOMETRY_VERTICES_OUT_EXT,4);
+   cout << "HERE"<< endl;
+   CreateShader(prog,GL_GEOMETRY_SHADER_EXT,geometryShaderExt);
+   glProgramParameteriEXT(prog,GL_GEOMETRY_INPUT_TYPE_EXT  ,GL_POINTS);
+   glProgramParameteriEXT(prog,GL_GEOMETRY_OUTPUT_TYPE_EXT ,GL_TRIANGLE_STRIP);
+   glProgramParameteriEXT(prog,GL_GEOMETRY_VERTICES_OUT_EXT,4);
 	#else
    //  OpenGL 3.2 adds layout ()
-   CreateShader(program[progNum],GL_GEOMETRY_SHADER, geometryShader);
+   CreateShader(prog,GL_GEOMETRY_SHADER, geometryShader);
 	#endif
-   CreateShader(program[progNum],GL_FRAGMENT_SHADER, fragShader);
+   CreateShader(prog,GL_FRAGMENT_SHADER, fragShader);
    //  Link program
-   glLinkProgram(program[progNum]);
+   glLinkProgram(prog);
    //  Check for errors
-   PrintProgramLog(program[progNum]);
+   PrintProgramLog(prog);
    //  Return name
-   return program[progNum];
+   return prog;
 	
 	
 }
@@ -283,12 +278,20 @@ int main(int argc,char* argv[])
    glutKeyboardFunc(key);
    glutIdleFunc(idle);
    //3d texture to store density values
+  // const int WIDTH = 33*sizeof(glFloat);
+   //const int HEIGHT = 33*sizeof(glFloat);
+   //const int CHANNELS = 1; //R
+   //const int NUM_SLICES = 33;
+   
+  // unsigned char* buffer = new unsigned char[WIDTH*HEIGHT*CHANNELS*NUM_SLICES];
+    
    glGenTextures(1,&densityTexture);
    glBindTexture(GL_TEXTURE_3D,densityTexture);
-   
+   //glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB8, 33*sizeof(glFloat), 33*sizeof(glFloat), NUM_SLICES, 0, GL_RGB, 
+     //        GL_UNSIGNED_BYTE, buffer);
    //  Shader program
-   // shader = CreateShaderProgGeom();
-   densityShader = CreateShaderProgGeom(0,"density.vert","density.geom", "density.geom_ext","density.frag");
+   //densityShader = CreateShaderProgGeom1("density.vert","density.geom", "density.geom_ext","density.frag");
+   densityShader = CreateShaderProg("density.vert", "density.frag");
    ErrCheck("init");
    //  Pass control to GLUT so it can interact with the user
    glutMainLoop();
