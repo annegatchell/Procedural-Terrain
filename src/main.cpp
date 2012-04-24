@@ -6,7 +6,7 @@
 
 using namespace std;
 
-double asp=1;       //  Aspect ratio
+double asp=1;     //  Aspect ratio
 int axes=1;       //  Display axes
 int th=0;         //  Azimuth of view angle
 int ph=0;         //  Elevation of view angle
@@ -42,9 +42,9 @@ Block* singleBlock = new Block();
 		 { 1.0, 1.0},
 		 { 1.0, 0.0} }; 
 	 //const GLubyte indices[6] = {0, 1, 2,  1, 2, 3};
-	 glGenBuffersARB(1, &VBOid[0]);
-	 glBindBufferARB(GL_ARRAY_BUFFER_ARB, VBOid[0]);
-	 glBufferDataARB(GL_ARRAY_BUFFER, 6*sizeof(GLfloat), portalTriangles, GL_STATIC_DRAW_ARB);
+	 glGenBuffers(1, &VBOid[0]);
+	 glBindBuffer(GL_ARRAY_BUFFER, VBOid[0]);
+	 glBufferData(GL_ARRAY_BUFFER, 6*2*sizeof(GLfloat), portalTriangles, GL_STATIC_DRAW);
 	 glDrawElementsInstanced(GL_TRIANGLE_STRIP,6,GL_UNSIGNED_SHORT, 0, instanceCount);
 }
 
@@ -86,13 +86,13 @@ void display()
    generateDensityValuesForBlock(*singleBlock);
    
    //  Redraw the texture
-      glClear(GL_COLOR_BUFFER_BIT);
-      glBegin(GL_QUADS);
+   //   glClear(GL_COLOR_BUFFER_BIT);
+    /*  glBegin(GL_QUADS);
       glTexCoord3f(0,0,0); glVertex2f(-1,-1);
       glTexCoord3f(0,1,0); glVertex2f(-1,+1);
       glTexCoord3f(1,1,0); glVertex2f(+1,+1);
       glTexCoord3f(1,0,0); glVertex2f(+1,-1);
-      glEnd();
+      glEnd();*/
      // glPopMatrix();
      
       
@@ -291,7 +291,7 @@ int main(int argc,char* argv[])
      //        GL_UNSIGNED_BYTE, buffer);
    //  Shader program
    //densityShader = CreateShaderProgGeom1("density.vert","density.geom", "density.geom_ext","density.frag");
-   densityShader = CreateShaderProg("density.vert", "density.frag");
+   densityShader = CreateShaderProg("simple.vert", "simple.frag");
    ErrCheck("init");
    //  Pass control to GLUT so it can interact with the user
    glutMainLoop();
