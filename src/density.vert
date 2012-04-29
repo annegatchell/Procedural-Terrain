@@ -2,15 +2,11 @@
 //  Density Vertex shader
 //
 
-uniform sampler3D density;
-uniform float x;
-uniform float y;
-uniform float z;
+uniform float time;
 
 void main()
 {
-   //  Remember the color
-   gl_FrontColor = gl_Color;
-   //  Defer all transformations to geometry shader
-   gl_Position   = gl_Vertex;
+   //  Set vertex coordinates
+   vec4 pos = gl_Vertex;
+   gl_Position = gl_ModelViewProjectionMatrix * pos;
 }

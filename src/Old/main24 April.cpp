@@ -61,6 +61,16 @@ void display()
    if(id >=0) glUniform1f(id, 0);
    
    generateDensityValuesForBlock(*singleBlock);
+   
+   //  Redraw the texture
+   //   glClear(GL_COLOR_BUFFER_BIT);
+    /*  glBegin(GL_QUADS);
+      glTexCoord3f(0,0,0); glVertex2f(-1,-1);
+      glTexCoord3f(0,1,0); glVertex2f(-1,+1);
+      glTexCoord3f(1,1,0); glVertex2f(+1,+1);
+      glTexCoord3f(1,0,0); glVertex2f(+1,-1);
+      glEnd();*/
+     // glPopMatrix();
      
       
    glDisable(GL_TEXTURE_2D);
@@ -244,7 +254,11 @@ int main(int argc,char* argv[])
    glutSpecialFunc(special);
    glutKeyboardFunc(key);
    glutIdleFunc(idle);
-
+   //3d texture to store density values
+  // const int WIDTH = 33*sizeof(glFloat);
+   //const int HEIGHT = 33*sizeof(glFloat);
+   //const int CHANNELS = 1; //R
+   //const int NUM_SLICES = 33;
    
   // unsigned char* buffer = new unsigned char[WIDTH*HEIGHT*CHANNELS*NUM_SLICES];
     
