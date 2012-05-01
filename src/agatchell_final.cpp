@@ -572,17 +572,18 @@ const char* densitySource =
 "  if (temp < 0.0001)\n"
 "      return(p1);\n"
 
-"   mu = (isolevel - valp1) / (valp2 - valp1);\n"
-"   p.x = p1.x + mu * (p2.x - p1.x);\n"
-"   p.y = p1.y + mu * (p2.y - p1.y);\n"
-"   p.z = p1.z + mu * (p2.z - p1.z);\n"
+"  mu = (isolevel - valp1) / (valp2 - valp1);\n"
+"  p.x = p1.x + mu * (p2.x - p1.x);\n"
+"  p.y = p1.y + mu * (p2.y - p1.y);\n"
+"  p.z = p1.z + mu * (p2.z - p1.z);\n"
+"  p.w = 0.0f;\n"
 
 "   return(p); \n"
 "}\n"
 
 "__kernel void densityCalc(__global float density[],__global const float xPos[],__global const float yPos[], __global const float zPos[], "
                           " const float x, const float y, const float z, const unsigned int n,"
-                          "__global float numTriangles[],__global float triangles[],__global float normals[])\n"
+                           "__global float numTriangles[],__global float triangles[],__global float normals[])\n"
 "{\n"
 "  unsigned int i = get_global_id(0);\n"
 "  unsigned int j = get_global_id(1);\n"
@@ -613,7 +614,10 @@ const char* densitySource =
 
 "  float isolevel = 0;\n"
 "  density[k + j*n + i*n*n] = densityFunction(actualX, actualY, actualZ);\n"
-
+"//}\n"
+"/*__kernel void triangleCalc(__global float density[],"
+                          " const float x, const float y, const float z, const unsigned int n,"
+                          "__global float numTriangles[],__global float triangles[],__global float normals[])*/\n"
 "  int numberOfTrianglesInThisWorkItem = 0;\n"
 "  float4 empty = (float4) {0.0f,0.0f,0.0f,0.0f};\n"
 "  float4 vertlist[12];\n"
@@ -696,25 +700,20 @@ const char* densitySource =
 "  numTriangles[k + j*n + i*n*n] = numberOfTrianglesInThisWorkItem;\n"
 "  for(int h = 0; h < 5; h+=1)\n"
 "     {\n"
-"        triangles[(k + j*n + i*n*n)+0] = triangleArrays[h][0].x;\n"
-"        triangles[(k + j*n + i*n*n)+1] = triangleArrays[h][0].y;\n"
-"        triangles[(k + j*n + i*n*n)+2] = triangleArrays[h][0].z;\n"
-"        triangles[(k + j*n + i*n*n)+3] = triangleArrays[h][0].w;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+0] = triangleArrays[h][0].x;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+1] = triangleArrays[h][0].y;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+2] = triangleArrays[h][0].z;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+3] = triangleArrays[h][0].w;\n"
 
-"        triangles[(k + j*n + i*n*n)+4] = triangleArrays[h][1].x;\n"
-"        triangles[(k + j*n + i*n*n)+5] = triangleArrays[h][1].y;\n"
-"        triangles[(k + j*n + i*n*n)+6] = triangleArrays[h][1].z;\n"
-"        triangles[(k + j*n + i*n*n)+7] = triangleArrays[h][1].w;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+4] = triangleArrays[h][1].x;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+5] = triangleArrays[h][1].y;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+6] = triangleArrays[h][1].z;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+7] = triangleArrays[h][1].w;\n"
 
-"        triangles[(k + j*n + i*n*n)+8] = triangleArrays[h][2].x;\n"
-"        triangles[(k + j*n + i*n*n)+9] = triangleArrays[h][2].y;\n"
-"        triangles[(k + j*n + i*n*n)+10] = triangleArrays[h][2].z;\n"
-"        triangles[(k + j*n + i*n*n)+11] = triangleArrays[h][2].w;\n"
-
-"        triangles[(k + j*n + i*n*n)+12] = triangleArrays[h][3].x;\n"
-"        triangles[(k + j*n + i*n*n)+13] = triangleArrays[h][3].y;\n"
-"        triangles[(k + j*n + i*n*n)+14] = triangleArrays[h][3].z;\n"
-"        triangles[(k + j*n + i*n*n)+15] = triangleArrays[h][3].w;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+8] = triangleArrays[h][2].x;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+9] = triangleArrays[h][2].y;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+10] = triangleArrays[h][2].z;\n"
+"        triangles[(k*5 + j*n*5 + i*n*n*5)+11] = triangleArrays[h][2].w;\n"
 "     }\n"
 " }\n"; 
 
@@ -726,9 +725,8 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
    // Calculate matrix dimensions
    int n = cubeDimPlusEdge;
    int N = cubeDimPlusEdge*cubeDimPlusEdge*cubeDimPlusEdge*sizeof(float);
-   int NTRI3 = N*3*3*5;
-   int NTRI4 = N*4*3*5;
-
+   int NTRI3 = N*5*3*3;
+   int NTRI4 = N*5*4*3;
    //Allocate device memory and copy A&B from host to device
    cl_int err;
    cl_mem d_xPos = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,n,h_xPos,&err);
@@ -739,8 +737,78 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
    if(err) Fatal("Cannot create and copy zPos from host to device\n");
 
    //Allocate device memory for C on device
-   cl_mem d_density = clCreateBuffer(context, CL_MEM_WRITE_ONLY,N,NULL,&err);
+   cl_mem d_density = clCreateBuffer(context, CL_MEM_READ_WRITE,N,NULL,&err);
    if(err) Fatal("Cannot create density on device, sad day indeed\n");
+   cl_mem d_numTriangles = clCreateBuffer(context, CL_MEM_WRITE_ONLY,N,NULL,&err);
+   if(err) Fatal("Cannot create numTriangles on device, sad day indeed\n");
+   cl_mem d_triangles = clCreateBuffer(context, CL_MEM_WRITE_ONLY,NTRI4,NULL,&err);
+   if(err) Fatal("Cannot create triangles on device, sad day indeed\n");
+   cl_mem d_normals = clCreateBuffer(context, CL_MEM_WRITE_ONLY,NTRI3,NULL,&err);
+   if(err) Fatal("Cannot create normals on device, sad day indeed\n");
+
+   //Compile kernel
+   cl_program prog = clCreateProgramWithSource(context,1,&densitySource,0,&err);
+   if(err) Fatal("Cannot create density program on device");
+   if(clBuildProgram(prog,0,NULL,NULL,NULL,NULL))
+   {
+      char log[1048576];
+      if(clGetProgramBuildInfo(prog,devid,CL_PROGRAM_BUILD_LOG,sizeof(log),log,NULL))
+         Fatal("Cannot get build log\n");
+      else
+         Fatal("Cannot build program\n%s\n",log);
+   }
+   cl_kernel kernel = clCreateKernel(prog,"densityCalc",&err);
+   if(err) Fatal("Cannot create kernel\n");
+
+   //Set parameters for kernel
+   if(clSetKernelArg(kernel,0,sizeof(cl_mem),&d_density)) Fatal("Cannot set kernel parameter d_density\n");
+   if(clSetKernelArg(kernel,1,sizeof(cl_mem),&d_xPos)) Fatal("Cannot set kernel parameter d_xPos\n");
+   if(clSetKernelArg(kernel,2,sizeof(cl_mem),&d_yPos)) Fatal("Cannot set kernel parameter d_yPos\n");
+   if(clSetKernelArg(kernel,3,sizeof(cl_mem),&d_zPos)) Fatal("Cannot set kernel parameter d_zPos\n");
+   if(clSetKernelArg(kernel,4,sizeof(float),&cornerPosX)) Fatal("Cannot set kernel parameter x\n");
+   if(clSetKernelArg(kernel,5,sizeof(float),&cornerPosY)) Fatal("Cannot set kernel parameter y\n");
+   if(clSetKernelArg(kernel,6,sizeof(float),&cornerPosZ)) Fatal("Cannot set kernel parameter z\n");
+   if(clSetKernelArg(kernel,7,sizeof(int),&n)) Fatal("Cannot set kernel parameter n\n");
+   if(clSetKernelArg(kernel,8,sizeof(cl_mem),&d_numTriangles)) Fatal("Cannot set kernel parameter d_numTriangles\n");
+   if(clSetKernelArg(kernel,9,sizeof(cl_mem),&d_triangles)) Fatal("Cannot set kernel parameter d_triangles\n");
+   if(clSetKernelArg(kernel,10,sizeof(cl_mem),&d_normals)) Fatal("Cannot set kernel parameter d_normals\n");
+
+
+   //Run Kernel
+   size_t Global[3] = {n,n,n};
+   //size_t Local[2]  = {10,10};
+   if (clEnqueueNDRangeKernel(queue,kernel,3,NULL,Global,NULL,0,NULL,NULL)) Fatal("Cannot run kernel\n");
+
+   //  Release kernel and program
+   if (clReleaseKernel(kernel)) Fatal("Cannot release kernel\n");
+   if (clReleaseProgram(prog)) Fatal("Cannot release program\n");
+
+   // Copy C from device to host (block until done)
+   if (clEnqueueReadBuffer(queue,d_density,CL_TRUE,0,N,h_density,0,NULL,NULL)) Fatal("Cannot copy density from device to host\n");
+
+   //  Free device memory
+   clReleaseMemObject(d_xPos);
+   clReleaseMemObject(d_yPos);
+   clReleaseMemObject(d_zPos);
+   clReleaseMemObject(d_density);
+}
+
+/*void triangleCalc(float h_numTriangles[], float h_triangles[], float h_normals[], 
+         float h_density[], 
+         float cornerPosX, float cornerPosY, float cornerPosZ)
+{
+   // Calculate matrix dimensions
+   int n = cubeDimPlusEdge;
+   int N = cubeDimPlusEdge*cubeDimPlusEdge*cubeDimPlusEdge*sizeof(float);
+   int NTRI3 = N*5*3*3;
+   int NTRI4 = N*5*4*3;
+
+   //Allocate device memory and copy A&B from host to device
+   cl_int err;
+   cl_mem d_density = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,n,h_density,&err);
+   if(err) Fatal("Cannot create and copy density from host to device\n");
+
+   //Allocate device memory for C on device
    cl_mem d_numTriangles = clCreateBuffer(context, CL_MEM_WRITE_ONLY,N,NULL,&err);
    if(err) Fatal("Cannot create numTriangles on device, sad day indeed\n");
    cl_mem d_triangles = clCreateBuffer(context, CL_MEM_WRITE_ONLY,NTRI4,NULL,&err);
@@ -797,9 +865,7 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
    clReleaseMemObject(d_zPos);
    clReleaseMemObject(d_density);
 }
-
-
-
+*/
 /*
  *  main
  */
@@ -844,7 +910,7 @@ int main(int argc, char* argv[])
    cout << "here" << endl;
    //Print out the density
    printMatrixInSmallestIncs(h_density, n*n*n, n);
-   //printMatrixInSmallestIncs(h_triangles, n*n*n*3*4*5, 4);
+   printMatrixInSmallestIncs(h_triangles, n*n*n*3*4*5, 4);
    
 
    free(h_xPos);
