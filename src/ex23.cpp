@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <iostream>
 #include <unistd.h>
 #include <math.h>
 #ifdef __APPLE__
@@ -17,6 +18,11 @@
 #else
 #include <sys/time.h>
 #endif
+
+using namespace std;
+
+#define cubeDim 3
+#define cubeDimPlusEdge 4
 
 /*
  *  Return elapsed wall time since last call (seconds)
@@ -41,6 +47,54 @@ float Elapsed(void)
    return s;
 }
 
+void printMatrix(float x[], int dim)
+{
+   for(int i = 0;i<dim;i++)
+      cout << "i " << x[i] << " ";
+   cout << endl;
+}
+
+void printMatrixInSmallestIncs(float x[], int dim, int smallest)
+{
+    for(int i = 0;i<dim;i++)
+   {
+      if(!(i%smallest))
+         cout << endl;
+      cout << "i " << x[i] << " ";
+   }
+   cout << endl;
+}
+
+void printLinearized3dMatrix(float x[], int totalDim, int xDim, int yDim, int zDim)
+{
+   for(int i = 0; i<xDim; i++)
+   {
+      for(int j=0; j<yDim; j++)
+      {
+         for(int k=0; k<zDim;k++)
+         {
+            cout << "i"<<i<<"j"<<j<<"k"<<k<< " "<< x[k + j*xDim + i*zDim*yDim] << " ";
+         }
+      }
+   }
+   cout << endl;
+}
+
+void OPprintLinearized3dMatrix(float x[], int totalDim, int xDim, int yDim, int zDim)
+{
+   for(int k = 0; k<zDim; k++)
+   {
+      for(int j=0; j<yDim; j++)
+      {
+         for(int i=0; i<xDim;i++)
+         {
+            cout << "i"<<i<<"j"<<j<<"k"<<k<< " "<< x[k + j*xDim + i*xDim*yDim] << " ";
+         }
+      }
+   }
+   cout << endl;
+}
+
 /*
  *  Print message to stderr and exit
  */
@@ -62,6 +116,34 @@ void RandomInit(float x[],const unsigned int n)
       x[i] = rand() / (float)RAND_MAX;
 }
 
+void generate1dMatrix(float x[], unsigned int dim)
+{
+   for(unsigned int i=0;i<dim;i++)
+   {
+      x[i] = i;
+   }
+}
+
+void generate3dMatrix(float x[], int xDim, int yDim, int zDim)
+{
+   int g = 0;
+   for(int i = 0; i<xDim; i++)
+   {
+      for(int j=0; j<yDim; j++)
+      {
+         for(int k=0; k<zDim;k++)
+         {
+            x[g] = i*100+j*10+k*1;
+            g++;
+         }
+      }
+   }
+}
+
+void generateBlockSide(float x[])
+{
+   generate1dMatrix(x, cubeDimPlusEdge);
+}
 /*
  *  OpenCL notify callback (echo to stderr)
  */
@@ -128,6 +210,11 @@ int InitGPU(int verbose)
    size_t mwgs;
    if (clGetDeviceInfo(devid,CL_DEVICE_MAX_WORK_GROUP_SIZE,sizeof(mwgs),&mwgs,NULL)) Fatal("Cannot get OpenCL max work group size\n");
 
+   size_t mwis[3];
+   if (clGetDeviceInfo(devid, CL_DEVICE_MAX_WORK_ITEM_SIZES,sizeof(mwis), &mwis,NULL)) Fatal("Cannot get OpenCL max work item sizes\n");
+   cout << "max work item size " << mwis[0] << " " << mwis[1] << " " << mwis[2] << endl;
+
+   
    //  Create OpenCL context for fastest device
    context = clCreateContext(0,1,&devid,Notify,NULL,&err);
    if(!context || err) Fatal("Cannot create OpenCL context\n");
@@ -153,7 +240,7 @@ void AxBh(float C[], const float A[], const float B[], unsigned int n)
          C[i*n+j] = (float)sum;
       }
 }
-
+ 
 /*
 * Compute one element of A * B
 */
@@ -164,9 +251,105 @@ const char* source =
   "   unsigned int i = get_global_id(1);\n"
   "   float sum =0;\n"
   "   for (int k=0;k<n;k++)\n"
-  "      sum += A[i*n+k] * B[k*n+j];\n"
+  "      sum = A[i*n+k] * B[k*n+j];\n"
   "   C[i*n+j] = sum;\n"
   "}\n";
+
+const char* densitySource = 
+"float transformX(int xOnBlock, float xPos, float n)\n"
+"{\n"
+"  return xPos+(xOnBlock*1/(n-1));\n"
+" }\n"
+
+"float transformY(int yOnBlock, float yPos, float n)\n"
+"{\n"
+"  return yPos+(yOnBlock*1/(n-1));\n"
+" }\n"
+
+"float transformZ(int zOnBlock, float zPos, float n)\n"
+"{\n"
+"  return zPos-(zOnBlock*1/(n-1));\n"
+" }\n"
+
+"float densityFunction(float x, float y, float z)\n"
+"{\n"
+"  float temp = -(y-0.5);\n"
+"  return temp;\n"
+"}\n"
+
+"__kernel void densityCalc(__global float density[],__global const float xPos[],__global const float yPos[], __global const float zPos[], "
+                          " const float x, const float y, const float z, const unsigned int n)\n"
+"{\n"
+"  unsigned int i = get_global_id(0);\n"
+"  unsigned int j = get_global_id(1);\n"
+"  unsigned int k = get_global_id(2);\n"
+"  float actualX = transformX(i, x, n);\n"
+"  float actualY = transformX(j, y, n);\n"
+"  float actualZ = transformX(k, z, n);\n"
+"  density[k + j*n + i*n*n] = densityFunction(actualX, actualY, actualZ);\n"
+" }\n"; 
+
+
+void densityCalc(float h_density[], float h_xPos[], float h_yPos[], float h_zPos[], float cornerPosX, float cornerPosY, float cornerPosZ)
+{
+   // Calculate matrix dimensions
+   int n = cubeDimPlusEdge;
+   int N = cubeDimPlusEdge*cubeDimPlusEdge*cubeDimPlusEdge*sizeof(float);
+
+   //Allocate device memory and copy A&B from host to device
+   cl_int err;
+   cl_mem d_xPos = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,n,h_xPos,&err);
+   if(err) Fatal("Cannot create and copy xPos from host to device\n");
+   cl_mem d_yPos = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,n,h_yPos,&err);
+   if(err) Fatal("Cannot create and copy yPos from host to device\n");
+   cl_mem d_zPos = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,n,h_zPos,&err);
+   if(err) Fatal("Cannot create and copy zPos from host to device\n");
+
+   //Allocate device memory for C on device
+   cl_mem d_density = clCreateBuffer(context, CL_MEM_WRITE_ONLY,N,NULL,&err);
+   if(err) Fatal("Cannot create density on device, sad day indeed\n");
+
+   //Compile kernel
+   cl_program prog = clCreateProgramWithSource(context,1,&densitySource,0,&err);
+   if(err) Fatal("Cannot create density program on device");
+   if(clBuildProgram(prog,0,NULL,NULL,NULL,NULL))
+   {
+      char log[1048576];
+      if(clGetProgramBuildInfo(prog,devid,CL_PROGRAM_BUILD_LOG,sizeof(log),log,NULL))
+         Fatal("Cannot get build log\n");
+      else
+         Fatal("Cannot build program\n%s\n",log);
+   }
+   cl_kernel kernel = clCreateKernel(prog,"densityCalc",&err);
+   if(err) Fatal("Cannot create kernel\n");
+
+   //Set parameters for kernel
+   if(clSetKernelArg(kernel,0,sizeof(cl_mem),&d_density)) Fatal("Cannot set kernel parameter d_density\n");
+   if(clSetKernelArg(kernel,1,sizeof(cl_mem),&d_xPos)) Fatal("Cannot set kernel parameter d_xPos\n");
+   if(clSetKernelArg(kernel,2,sizeof(cl_mem),&d_yPos)) Fatal("Cannot set kernel parameter d_yPos\n");
+   if(clSetKernelArg(kernel,3,sizeof(cl_mem),&d_zPos)) Fatal("Cannot set kernel parameter d_zPos\n");
+   if(clSetKernelArg(kernel,4,sizeof(float),&cornerPosX)) Fatal("Cannot set kernel parameter x\n");
+   if(clSetKernelArg(kernel,5,sizeof(float),&cornerPosY)) Fatal("Cannot set kernel parameter y\n");
+   if(clSetKernelArg(kernel,6,sizeof(float),&cornerPosZ)) Fatal("Cannot set kernel parameter z\n");
+   if(clSetKernelArg(kernel,7,sizeof(int),&n)) Fatal("Cannot set kernel parameter n\n");
+
+   //Run Kernel
+   size_t Global[3] = {n,n,n};
+   if (clEnqueueNDRangeKernel(queue,kernel,3,NULL,Global,NULL,0,NULL,NULL)) Fatal("Cannot run kernel\n");
+
+   //  Release kernel and program
+   if (clReleaseKernel(kernel)) Fatal("Cannot release kernel\n");
+   if (clReleaseProgram(prog)) Fatal("Cannot release program\n");
+
+   // Copy C from device to host (block until done)
+   if (clEnqueueReadBuffer(queue,d_density,CL_TRUE,0,N,h_density,0,NULL,NULL)) Fatal("Cannot copy density from device to host\n");
+
+   //  Free device memory
+   clReleaseMemObject(d_xPos);
+   clReleaseMemObject(d_yPos);
+   clReleaseMemObject(d_zPos);
+   clReleaseMemObject(d_density);
+}
 
 /*
  * C = A * B -- device
@@ -201,6 +384,10 @@ void AxBd(float Ch[],float Ah[],float Bh[],const unsigned int Bw,const unsigned 
    }
    cl_kernel kernel = clCreateKernel(prog,"AxB",&err);
    if (err) Fatal("Cannot create kernel\n");
+
+   size_t wgs;
+   if(clGetKernelWorkGroupInfo(kernel, devid, CL_KERNEL_WORK_GROUP_SIZE, sizeof(wgs), &wgs,NULL)) Fatal("Cannot get OpenCL kernel work group size\n");
+   cout << "Kernel work group info " << wgs << endl;
 
    //  Set parameters for kernel
    if (clSetKernelArg(kernel,0,sizeof(cl_mem),&Cd)) Fatal("Cannot set kernel parameter Cd\n");
@@ -257,7 +444,9 @@ int main(int argc, char* argv[])
 
    //  Initialize GPU
    int Mw = InitGPU(verbose);
+   cout << "Max Work group size is " << Mw << endl;
    if (Mw<Bw*Bw) Fatal("Thread count %d exceeds max work group size of %d\n",Bw*Bw,Mw);
+
 
    // Allocate host matrices A/B/C/R
    float* Ah = (float*)malloc(N);
@@ -270,6 +459,7 @@ int main(int argc, char* argv[])
    srand(9999);
    RandomInit(Ah,n);
    RandomInit(Bh,n);
+
 
    //  Compute R = AB on host
    Elapsed();
@@ -298,6 +488,57 @@ int main(int argc, char* argv[])
    printf("Device Time = %6.3f s\n",Td);
    printf("Speedup = %.1f\n",Th/Td);
    printf("Difference = %.2e\n",r2);
+
+   //Start other calculation
+   cout << "Now to calculate the density" << endl;
+
+   
+   //Allocate host memory for density calcs
+   n = cubeDimPlusEdge;
+   N = n*n*n*sizeof(float);
+
+   float* test3d = (float*)malloc(N);
+   generate1dMatrix(test3d, n*n*n);
+   printMatrix(test3d, n*n*n);
+   printLinearized3dMatrix(test3d, n*n*n, n, n, n);
+   cout << endl;
+   OPprintLinearized3dMatrix(test3d, n*n*n, n,n,n);
+
+   cout << endl;
+   float* test3dAgain = (float*)malloc(N);
+   generate3dMatrix(test3dAgain, n,n,n);
+   printLinearized3dMatrix(test3dAgain,n*n*n, n,n,n);
+    cout << endl;
+   OPprintLinearized3dMatrix(test3dAgain,n*n*n, n,n,n);
+
+   float* h_xPos = (float*)malloc(n);
+   float* h_yPos = (float*)malloc(n);
+   float* h_zPos = (float*)malloc(n);
+   float* h_density = (float*)malloc(N);
+   if (!h_xPos || !h_yPos || !h_zPos || !h_density) Fatal("Cannot allocate host memory\n");
+
+   //Initialize x, y, z
+   generateBlockSide(h_xPos);
+   printMatrix(h_xPos, n);
+   generateBlockSide(h_yPos);
+   printMatrix(h_yPos, n);
+   generateBlockSide(h_zPos);
+   printMatrix(h_zPos, n);
+   
+   
+   
+   //Perform density calculation
+   densityCalc(h_density,h_xPos,h_yPos,h_zPos,0,0,0);
+
+   //Print out the density
+   printMatrixInSmallestIncs(h_density, n*n*n, n);
+
+
+   free(h_xPos);
+   free(h_yPos);
+   free(h_zPos);
+   free(h_density);
+
 
    //  Done
    return 0;
