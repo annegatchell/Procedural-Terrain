@@ -65,6 +65,48 @@ void printMatrixInSmallestIncs(float x[], int dim, int smallest)
    cout << endl;
 }
 
+void printTriangleMatrix(float x[])
+{
+   for(int i=0; i<cubeDim*cubeDim*cubeDim;i++)
+   {
+       cout << "{" <<endl;
+      for (int a=0;a<5;a++)
+      {
+        
+         for(int b=0;b<3;b++){
+            cout << "{";
+            for(int c=0;c<4;c++){
+               cout << x[5*3*4*i+3*4*a+4*b+c] << " ";
+            }
+            cout << "}";
+         }
+         cout <<endl;
+      }
+      cout << "}" << endl <<endl;
+   }
+}
+
+void printTriangleMatrixIndeces()
+{
+   for(int i=0; i<cubeDim*cubeDim*cubeDim;i++)
+   {
+       cout << "{" <<endl;
+      for (int a=0;a<5;a++)
+      {
+        
+         for(int b=0;b<3;b++){
+            cout << "{";
+            for(int c=0;c<4;c++){
+               cout << 5*3*4*i+3*4*a+4*b+c << " ";
+            }
+            cout << "}";
+         }
+         cout <<endl;
+      }
+      cout << "}" << endl <<endl;
+   }
+}
+
 void printLinearized3dMatrix(float x[], int totalDim, int xDim, int yDim, int zDim)
 {
    for(int i = 0; i<xDim; i++)
@@ -588,10 +630,12 @@ const char* densitySource =
 "  unsigned int i = get_global_id(0);\n"
 "  unsigned int j = get_global_id(1);\n"
 "  unsigned int k = get_global_id(2);\n"
+
 "  float actualX = transformX(i, x, n);\n"
 "  float actualY = transformY(j, y, n);\n"
 "  float actualZ = transformZ(k, z, n);\n"
 "  float4 actualPos = (float4) (x,y,z,0.0f);\n"
+
 "  int i0,i1,i2,i3,i4,i5,i6,i7;\n"
 "  i0 = k + j*n + i*n*n;\n"
 "  i1 = (k+1) + j*n + i*n*n;\n"
@@ -614,10 +658,23 @@ const char* densitySource =
 
 "  float isolevel = 0;\n"
 "  density[k + j*n + i*n*n] = densityFunction(actualX, actualY, actualZ);\n"
-"//}\n"
-"/*__kernel void triangleCalc(__global float density[],"
-                          " const float x, const float y, const float z, const unsigned int n,"
-                          "__global float numTriangles[],__global float triangles[],__global float normals[])*/\n"
+"  triangles[0] = 42;\n"
+"  for(int a = 0; a<5;a++){"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+0] = 0;//triangleArrays[h][0].x;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+1] = 1;//triangleArrays[h][0].y;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+2] = 2;//triangleArrays[h][0].z;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+3] = 3;//triangleArrays[h][0].w;\n"
+
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+4] = 4;//triangleArrays[h][1].x;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+5] = 5;//triangleArrays[h][1].y;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+6] = 6;//triangleArrays[h][1].z;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+7] = 7;//triangleArrays[h][1].w;\n"
+
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+8] = 8;//triangleArrays[h][2].x;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+9] = 9;//triangleArrays[h][2].y;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+10] = 10;//triangleArrays[h][2].z;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+11] = 11;//triangleArrays[h][2].w;\n"
+"  }\n"
 "  int numberOfTrianglesInThisWorkItem = 0;\n"
 "  float4 empty = (float4) {0.0f,0.0f,0.0f,0.0f};\n"
 "  float4 vertlist[12];\n"
@@ -687,10 +744,10 @@ const char* densitySource =
    "     //for (int w=0;triTable[cubeindex][w]!=-1;w+=3)\n"
    "     for (int h=0;h<5;h+=1)\n"
    "     { \n"
-   "        triangleArrays[h][0] = vertlist[triTable[cubeindex][w  ]];\n"
-   "        triangleArrays[h][1] = vertlist[triTable[cubeindex][w+1]];\n"
-   "        triangleArrays[h][2] = vertlist[triTable[cubeindex][w+2]];\n"
-   "        triangleArrays[h][3] = empty;\n"
+   "        triangleArrays[h][0] = 1;//vertlist[triTable[cubeindex][w  ]];\n"
+   "        triangleArrays[h][1] = 2;//vertlist[triTable[cubeindex][w+1]];\n"
+   "        triangleArrays[h][2] = 3;//vertlist[triTable[cubeindex][w+2]];\n"
+   "        triangleArrays[h][3] = 4;//empty;\n"
    "        w+=3;\n"
    "        if(triTable[cubeindex][w] != -1) ntriang++;\n"
    "     }\n"
@@ -700,20 +757,20 @@ const char* densitySource =
 "  numTriangles[k + j*n + i*n*n] = numberOfTrianglesInThisWorkItem;\n"
 "  for(int h = 0; h < 5; h+=1)\n"
 "     {\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+0] = triangleArrays[h][0].x;\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+1] = triangleArrays[h][0].y;\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+2] = triangleArrays[h][0].z;\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+3] = triangleArrays[h][0].w;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+0] = 0;//triangleArrays[h][0].x;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+1] = 1;//triangleArrays[h][0].y;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+2] = 2;//triangleArrays[h][0].z;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+3] = 3;//triangleArrays[h][0].w;\n"
 
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+4] = triangleArrays[h][1].x;\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+5] = triangleArrays[h][1].y;\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+6] = triangleArrays[h][1].z;\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+7] = triangleArrays[h][1].w;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+4] = 4;//triangleArrays[h][1].x;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+5] = 5;//triangleArrays[h][1].y;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+6] = 6;//triangleArrays[h][1].z;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+7] = 7;//triangleArrays[h][1].w;\n"
 
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+8] = triangleArrays[h][2].x;\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+9] = triangleArrays[h][2].y;\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+10] = triangleArrays[h][2].z;\n"
-"        triangles[(k*5 + j*n*5 + i*n*n*5)+11] = triangleArrays[h][2].w;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+8] = 8;//triangleArrays[h][2].x;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+9] = 9;//triangleArrays[h][2].y;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+10] = 10;//triangleArrays[h][2].z;\n"
+"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+11] = 11;//triangleArrays[h][2].w;\n"
 "     }\n"
 " }\n"; 
 
@@ -737,7 +794,7 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
    if(err) Fatal("Cannot create and copy zPos from host to device\n");
 
    //Allocate device memory for C on device
-   cl_mem d_density = clCreateBuffer(context, CL_MEM_READ_WRITE,N,NULL,&err);
+   cl_mem d_density = clCreateBuffer(context, CL_MEM_WRITE_ONLY,N,NULL,&err);
    if(err) Fatal("Cannot create density on device, sad day indeed\n");
    cl_mem d_numTriangles = clCreateBuffer(context, CL_MEM_WRITE_ONLY,N,NULL,&err);
    if(err) Fatal("Cannot create numTriangles on device, sad day indeed\n");
@@ -785,12 +842,18 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
 
    // Copy C from device to host (block until done)
    if (clEnqueueReadBuffer(queue,d_density,CL_TRUE,0,N,h_density,0,NULL,NULL)) Fatal("Cannot copy density from device to host\n");
+   if (clEnqueueReadBuffer(queue,d_numTriangles,CL_TRUE,0,N,h_numTriangles,0,NULL,NULL)) Fatal("Cannot copy numTriangles from device to host\n");
+   if (clEnqueueReadBuffer(queue,d_triangles,CL_TRUE,0,NTRI4,h_triangles,0,NULL,NULL)) Fatal("Cannot copy triangles from device to host\n");
+   if (clEnqueueReadBuffer(queue,d_normals,CL_TRUE,0,NTRI3,h_normals,0,NULL,NULL)) Fatal("Cannot copy normals from device to host\n");
 
    //  Free device memory
    clReleaseMemObject(d_xPos);
    clReleaseMemObject(d_yPos);
    clReleaseMemObject(d_zPos);
    clReleaseMemObject(d_density);
+   clReleaseMemObject(d_triangles);
+   clReleaseMemObject(d_numTriangles);
+   clReleaseMemObject(d_normals);
 }
 
 /*void triangleCalc(float h_numTriangles[], float h_triangles[], float h_normals[], 
@@ -906,11 +969,15 @@ int main(int argc, char* argv[])
    printMatrix(h_zPos, n);
    
    //Perform density calculation
-   densityCalc(h_numTriangles, h_normals, h_triangles, h_density,h_xPos,h_yPos,h_zPos,0,0,0);
+   densityCalc(h_numTriangles, h_triangles, h_normals, h_density,h_xPos,h_yPos,h_zPos,0,0,0);
    cout << "here" << endl;
    //Print out the density
    printMatrixInSmallestIncs(h_density, n*n*n, n);
-   printMatrixInSmallestIncs(h_triangles, n*n*n*3*4*5, 4);
+   printTriangleMatrix(h_triangles);
+   cout <<endl;
+   printMatrix(h_triangles, 4*3*5*n*n*n);
+   cout <<endl;
+   printTriangleMatrixIndeces();
    
 
    free(h_xPos);
