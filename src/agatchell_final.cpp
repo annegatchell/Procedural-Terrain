@@ -1,11 +1,10 @@
 /*
  *  OpenCL square matrix multiplier
  */
+#include "CSCIx239.h"
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
 #include <iostream>
+
 #include <unistd.h>
 #include <math.h>
 #ifdef __APPLE__
@@ -21,14 +20,34 @@
 
 using namespace std;
 
-#define cubeDim 3
-#define cubeDimPlusEdge 4
+#define cubeDim 2
+#define cubeDimPlusEdge 3
+
+
+int axes=1;       //  Display axes
+int mode=0;       //  Shader mode
+int move=1;       //  Move light
+int proj=0;       //  Projection type
+int obj=0;        //  Object
+int th=0;         //  Azimuth of view angle
+int ph=0;         //  Elevation of view angle
+int fov=55;       //  Field of view (for perspective)
+double asp=1;     //  Aspect ratio
+double dim=3.0;   //  Size of world
+int model;        //  Model display list
+int shader[] = {0,0,0}; //  Shader program
+char* text[] = {"No Shader","Simple Shader","Basic Shader"};
+float* verteces;
+#define numVoxels
+
+
+
 
 /*
  *  Return elapsed wall time since last call (seconds)
  */
-static double t0=0;
-float Elapsed(void)
+//static double t0=0;
+/*float Elapsed(void)
 {
 #ifdef _WIN32
    //  Windows version of wall time
@@ -45,7 +64,7 @@ float Elapsed(void)
    float s = t-t0;
    t0 = t;
    return s;
-}
+}*/
 
 void printMatrix(float x[], int dim)
 {
@@ -69,6 +88,7 @@ void printTriangleMatrix(float x[])
 {
    for(int i=0; i<cubeDim*cubeDim*cubeDim;i++)
    {
+      cout<< (i/cubeDim/cubeDim) << endl;
        cout << "{" <<endl;
       for (int a=0;a<5;a++)
       {
@@ -90,6 +110,7 @@ void printTriangleMatrixIndeces()
 {
    for(int i=0; i<cubeDim*cubeDim*cubeDim;i++)
    {
+      cout<< (i/cubeDim/cubeDim) << endl;
        cout << "{" <<endl;
       for (int a=0;a<5;a++)
       {
@@ -591,7 +612,7 @@ const char* densitySource =
 
 "float densityFunction(float x, float y, float z)\n"
 "{\n"
-"  float temp = -(y-0.5);\n"
+"  float temp = (y-0.5);\n"
 "  return temp;\n"
 "}\n"
 
@@ -618,12 +639,27 @@ const char* densitySource =
 "  p.x = p1.x + mu * (p2.x - p1.x);\n"
 "  p.y = p1.y + mu * (p2.y - p1.y);\n"
 "  p.z = p1.z + mu * (p2.z - p1.z);\n"
-"  p.w = 0.0f;\n"
+"  p.w = -1;\n"
 
 "   return(p); \n"
 "}\n"
 
 "__kernel void densityCalc(__global float density[],__global const float xPos[],__global const float yPos[], __global const float zPos[], "
+                          " const float x, const float y, const float z, const unsigned int n)\n"
+"{\n"
+"  unsigned int i = get_global_id(0);\n"
+"  unsigned int j = get_global_id(1);\n"
+"  unsigned int k = get_global_id(2);\n"
+
+"  float actualX = transformX(i, x, n);\n"
+"  float actualY = transformY(j, y, n);\n"
+"  float actualZ = transformZ(k, z, n);\n"
+"  float4 actualPos = (float4) (x,y,z,0.0f);\n"
+
+"  density[k + j*n + i*n*n] = densityFunction(actualX, actualY, actualZ);\n"
+"}\n"
+
+"__kernel void triangles(__global float density[], "
                           " const float x, const float y, const float z, const unsigned int n,"
                            "__global float numTriangles[],__global float triangles[],__global float normals[])\n"
 "{\n"
@@ -656,134 +692,137 @@ const char* densitySource =
 "  p6 = transform((float4)(i+1, j+1, k+1, 0.0f), actualPos, n);\n"
 "  p7 = transform((float4)(i+1, j+1, k, 0.0f), actualPos, n);\n"
 
-"  float isolevel = 0;\n"
-"  density[k + j*n + i*n*n] = densityFunction(actualX, actualY, actualZ);\n"
-"  triangles[0] = 42;\n"
-"  for(int a = 0; a<5;a++){"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+0] = 0;//triangleArrays[h][0].x;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+1] = 1;//triangleArrays[h][0].y;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+2] = 2;//triangleArrays[h][0].z;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+3] = 3;//triangleArrays[h][0].w;\n"
-
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+4] = 4;//triangleArrays[h][1].x;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+5] = 5;//triangleArrays[h][1].y;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+6] = 6;//triangleArrays[h][1].z;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+7] = 7;//triangleArrays[h][1].w;\n"
-
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+8] = 8;//triangleArrays[h][2].x;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+9] = 9;//triangleArrays[h][2].y;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+10] = 10;//triangleArrays[h][2].z;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+11] = 11;//triangleArrays[h][2].w;\n"
-"  }\n"
 "  int numberOfTrianglesInThisWorkItem = 0;\n"
 "  float4 empty = (float4) {0.0f,0.0f,0.0f,0.0f};\n"
 "  float4 vertlist[12];\n"
 
-"  float4 triangleArrays[5][4];\n"
+"  float4 triangleArrays[5][3];\n"
 "  int cubeindex = 0;\n"
+"  float isolevel = 0;\n"
+   //Initialize triangles to -1
+   "for(int a = 0; a<5*3*4;a++)"
+   "{\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+a] = -1;\n"
+   "}\n"
+//Initialize the triangles arrays to -99
+   "for(int a = 0; a<5;a++){"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+0] = -99;//triangleArrays[h][0].x;\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+1] = -99;//triangleArrays[h][0].y;\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+2] = -99;//triangleArrays[h][0].z;\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+3] = -99;//triangleArrays[h][0].w;\n"
 
-"  if(i<=n && j<=n && k<=n)\n"
-"  {\n"
-"     if (density[i0] > isolevel) cubeindex |= 1;\n"
-"     if (density[i1] > isolevel) cubeindex |= 2;\n"
-"     if (density[i2] > isolevel) cubeindex |= 4;\n"
-"     if (density[i3] > isolevel) cubeindex |= 8;\n"
-"     if (density[i4] > isolevel) cubeindex |= 16;\n"
-"     if (density[i5] > isolevel) cubeindex |= 32;\n"
-"     if (density[i6] > isolevel) cubeindex |= 64;\n"
-"     if (density[i7] > isolevel) cubeindex |= 128;\n"
-"     /* Cube is entirely in/out of the surface */ \n"
-"     if (edgeTable[cubeindex] == 0) \n"
-"     {\n"
-"        numberOfTrianglesInThisWorkItem = 0; \n"
-"        for(int c = 0; c<12;c++)\n"
-"           {  vertlist[c] = empty;}\n"
-"     }\n"
-"     else{ \n"
-"   /* Find the vertices where the surface intersects the cube */"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+4] = -99;//triangleArrays[h][1].x;\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+5] = -99;//triangleArrays[h][1].y;\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+6] = -99;//triangleArrays[h][1].z;\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+7] = -99;//triangleArrays[h][1].w;\n"
+
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+8] = -99;//triangleArrays[h][2].x;\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+9] = -99;//triangleArrays[h][2].y;\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+10] = -99;//triangleArrays[h][2].z;\n"
+      "triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+11] = -99;//triangleArrays[h][2].w;\n"
+   "}\n"
+//Initialize triangleArrays
+   "for(int i=0;i<5;i++)\n"
+   "{\n"
+      "triangleArrays[i][0] = (float4) {42, 42, 42, 42};//vertlist[triTable[cubeindex][w  ]];\n"
+      "triangleArrays[i][1] = (float4) {42, 42, 42, 42};//vertlist[triTable[cubeindex][w+1]];\n"
+      "triangleArrays[i][2] = (float4) {42, 42, 42, 42};//vertlist[triTable[cubeindex][w+2]];\n"
+   "}\n"
+//Initialize vertlist
+   "for(int c = 0; c<12;c++)\n"
+      "{vertlist[c] = empty;}\n"
+
+//If the voxel isn't hanging off the edge, find the vertices
+   "if(i<=n && j<=n && k<=n)\n"
+   "{\n"
+      "if (density[i0] > isolevel) cubeindex |= 1;\n"
+      "if (density[i1] > isolevel) cubeindex |= 2;\n"
+      "if (density[i2] > isolevel) cubeindex |= 4;\n"
+      "if (density[i3] > isolevel) cubeindex |= 8;\n"
+      "if (density[i4] > isolevel) cubeindex |= 16;\n"
+      "if (density[i5] > isolevel) cubeindex |= 32;\n"
+      "if (density[i6] > isolevel) cubeindex |= 64;\n"
+      "if (density[i7] > isolevel) cubeindex |= 128;\n"
+   // Cube is entirely in/out of the surface
+      "if (edgeTable[cubeindex] == 0) \n"
+      "{\n"
+         "numberOfTrianglesInThisWorkItem = 0; \n"
+      "}\n"
+      "else{ \n"
+         // Find the vertices where the surface intersects the cube "
          "if (edgeTable[cubeindex] & 1)\n"
-            "vertlist[0] ="
-               "VertexInterp(isolevel,p0,p1,density[i0],density[i1]) ;\n"
+               "vertlist[0] = /*(float4) {11, 11, 11, 11};*/VertexInterp(isolevel,p0,p1,density[i0],density[i1]) ;\n"
          "if (edgeTable[cubeindex] & 2)\n"
-            "vertlist[1] ="
-               "VertexInterp(isolevel,p1,p2,density[i1],density[i2]);\n"
+               "vertlist[1] = /*(float4) {22, 22, 22, 22};*/VertexInterp(isolevel,p1,p2,density[i1],density[i2]);\n"
          "if (edgeTable[cubeindex] & 4)\n"
-            "vertlist[2] ="
-               "VertexInterp(isolevel,p2,p3,density[i2],density[i3]);\n"
+               "vertlist[2] = /*(float4) {33, 33, 33, 33};*/VertexInterp(isolevel,p2,p3,density[i2],density[i3]);\n"
          "if (edgeTable[cubeindex] & 8)\n"
-            "vertlist[3] ="
-               "VertexInterp(isolevel,p3,p0,density[i3],density[i0]);\n"
+               "vertlist[3] = /*(float4) {44, 44, 44, 44};*/VertexInterp(isolevel,p3,p0,density[i3],density[i0]);\n"
          "if (edgeTable[cubeindex] & 16)\n"
-            "vertlist[4] ="
-               "VertexInterp(isolevel,p4,p5,density[i4],density[i5]);\n"
+               "vertlist[4] = /*(float4) {55, 55, 55, 55};*/VertexInterp(isolevel,p4,p5,density[i4],density[i5]);\n"
          "if (edgeTable[cubeindex] & 32)\n"
-            "vertlist[5] ="
-               "VertexInterp(isolevel,p5,p6,density[i5],density[i6]);\n"
+               "vertlist[5] = /*(float4) {66, 66, 66, 66};*/VertexInterp(isolevel,p5,p6,density[i5],density[i6]);\n"
          "if (edgeTable[cubeindex] & 64)\n"
-            "vertlist[6] ="
-               "VertexInterp(isolevel,p6,p7,density[i6],density[i7]);\n"
+               "vertlist[6] = /*(float4) {77, 77, 77, 77};*/VertexInterp(isolevel,p6,p7,density[i6],density[i7]);\n"
          "if (edgeTable[cubeindex] & 128)\n"
-            "vertlist[7] ="
-               "VertexInterp(isolevel,p7,p4,density[i7],density[i4]);\n"
+               "vertlist[7] = /*(float4) {88, 88, 88, 88};*/VertexInterp(isolevel,p7,p4,density[i7],density[i4]);\n"
          "if (edgeTable[cubeindex] & 256)\n"
-            "vertlist[8] ="
-               "VertexInterp(isolevel,p0,p4,density[i0],density[i4]);\n"
+               "vertlist[8] = /*(float4) {99, 99, 99, 99};*/VertexInterp(isolevel,p0,p4,density[i0],density[i4]);\n"
          "if (edgeTable[cubeindex] & 512)\n"
-            "vertlist[9] ="
-               "VertexInterp(isolevel,p1,p5,density[i1],density[i5]);\n"
+               "vertlist[9] = /*(float4) {1010, 1010, 1010, 1010};*/VertexInterp(isolevel,p1,p5,density[i1],density[i5]);\n"
          "if (edgeTable[cubeindex] & 1024)\n"
-            "vertlist[10] ="
-               "VertexInterp(isolevel,p2,p6,density[i2],density[i6]);\n"
+               "vertlist[10] = /*(float4) {1111, 1111, 1111, 1111};*/VertexInterp(isolevel,p2,p6,density[i2],density[i6]);\n"
          "if (edgeTable[cubeindex] & 2048)\n"
-            "vertlist[11] ="
-               "VertexInterp(isolevel,p3,p7,density[i3],density[i7]);\n"
-"     /* Create the triangle */ \n"
-   "     int ntriang = 0;\n"
-   "     int w = 0;\n"
+               "vertlist[11] = /*(float4) {1212, 1212, 1212, 1212};*/VertexInterp(isolevel,p3,p7,density[i3],density[i7]);\n"
+//Create the triangle
 
-   "     //for (int w=0;triTable[cubeindex][w]!=-1;w+=3)\n"
-   "     for (int h=0;h<5;h+=1)\n"
-   "     { \n"
-   "        triangleArrays[h][0] = 1;//vertlist[triTable[cubeindex][w  ]];\n"
-   "        triangleArrays[h][1] = 2;//vertlist[triTable[cubeindex][w+1]];\n"
-   "        triangleArrays[h][2] = 3;//vertlist[triTable[cubeindex][w+2]];\n"
-   "        triangleArrays[h][3] = 4;//empty;\n"
-   "        w+=3;\n"
-   "        if(triTable[cubeindex][w] != -1) ntriang++;\n"
-   "     }\n"
-   "     numberOfTrianglesInThisWorkItem = ntriang;\n"
-"     }\n"
-"  }\n"
+         "int ntriang = 0;\n"
+         "for (int w=0;triTable[cubeindex][w]!=-1;w+=3)\n"
+         //for (int w=0;w<15;w+=3)
+         "{ \n"
+            "triangleArrays[ntriang][0] = /*(float4) {1, 1, 1, -1};*/vertlist[triTable[cubeindex][w  ]];\n"
+            "triangleArrays[ntriang][1] = /*(float4) {2, 2, 2, -1};*/vertlist[triTable[cubeindex][w+1]];\n"
+            "triangleArrays[ntriang][2] = /*(float4) {3, 3, 3, -1};*/vertlist[triTable[cubeindex][w+2]];\n"
+            "ntriang++;\n"
+            "if(ntriang>4) break;"
+         "}\n"
+         "numberOfTrianglesInThisWorkItem = ntriang;\n"
+      "}\n"
+   "}\n"
+ 
+
+//Set the number of triangles for the voxel that this thread is responsbile for"
 "  numTriangles[k + j*n + i*n*n] = numberOfTrianglesInThisWorkItem;\n"
-"  for(int h = 0; h < 5; h+=1)\n"
-"     {\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+0] = 0;//triangleArrays[h][0].x;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+1] = 1;//triangleArrays[h][0].y;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+2] = 2;//triangleArrays[h][0].z;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+3] = 3;//triangleArrays[h][0].w;\n"
+//Set the triangles array to the values in the temp triangle arrays
+"  for(int a = 0; a < 5; a+=1)\n"
+"  {\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+0] = triangleArrays[a][0].x;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+1] = triangleArrays[a][0].y;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+2] = triangleArrays[a][0].z;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+3] = triangleArrays[a][0].w;\n"
 
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+4] = 4;//triangleArrays[h][1].x;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+5] = 5;//triangleArrays[h][1].y;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+6] = 6;//triangleArrays[h][1].z;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+7] = 7;//triangleArrays[h][1].w;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+4] = triangleArrays[a][1].x;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+5] = triangleArrays[a][1].y;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+6] = triangleArrays[a][1].z;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+7] = triangleArrays[a][1].w;\n"
 
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+8] = 8;//triangleArrays[h][2].x;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+9] = 9;//triangleArrays[h][2].y;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+10] = 10;//triangleArrays[h][2].z;\n"
-"        triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+11] = 11;//triangleArrays[h][2].w;\n"
-"     }\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+8] = triangleArrays[a][2].x;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+9] = triangleArrays[a][2].y;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+10] = triangleArrays[a][2].z;\n"
+"     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+11] = triangleArrays[a][2].w;\n"
+"  }\n"
+
 " }\n"; 
 
 
-void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[], 
+void densityCalc( 
          float h_density[], float h_xPos[], float h_yPos[], float h_zPos[], 
          float cornerPosX, float cornerPosY, float cornerPosZ)
 {
    // Calculate matrix dimensions
    int n = cubeDimPlusEdge;
    int N = cubeDimPlusEdge*cubeDimPlusEdge*cubeDimPlusEdge*sizeof(float);
-   int NTRI3 = N*5*3*3;
-   int NTRI4 = N*5*4*3;
+
    //Allocate device memory and copy A&B from host to device
    cl_int err;
    cl_mem d_xPos = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,n,h_xPos,&err);
@@ -796,12 +835,6 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
    //Allocate device memory for C on device
    cl_mem d_density = clCreateBuffer(context, CL_MEM_WRITE_ONLY,N,NULL,&err);
    if(err) Fatal("Cannot create density on device, sad day indeed\n");
-   cl_mem d_numTriangles = clCreateBuffer(context, CL_MEM_WRITE_ONLY,N,NULL,&err);
-   if(err) Fatal("Cannot create numTriangles on device, sad day indeed\n");
-   cl_mem d_triangles = clCreateBuffer(context, CL_MEM_WRITE_ONLY,NTRI4,NULL,&err);
-   if(err) Fatal("Cannot create triangles on device, sad day indeed\n");
-   cl_mem d_normals = clCreateBuffer(context, CL_MEM_WRITE_ONLY,NTRI3,NULL,&err);
-   if(err) Fatal("Cannot create normals on device, sad day indeed\n");
 
    //Compile kernel
    cl_program prog = clCreateProgramWithSource(context,1,&densitySource,0,&err);
@@ -826,10 +859,6 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
    if(clSetKernelArg(kernel,5,sizeof(float),&cornerPosY)) Fatal("Cannot set kernel parameter y\n");
    if(clSetKernelArg(kernel,6,sizeof(float),&cornerPosZ)) Fatal("Cannot set kernel parameter z\n");
    if(clSetKernelArg(kernel,7,sizeof(int),&n)) Fatal("Cannot set kernel parameter n\n");
-   if(clSetKernelArg(kernel,8,sizeof(cl_mem),&d_numTriangles)) Fatal("Cannot set kernel parameter d_numTriangles\n");
-   if(clSetKernelArg(kernel,9,sizeof(cl_mem),&d_triangles)) Fatal("Cannot set kernel parameter d_triangles\n");
-   if(clSetKernelArg(kernel,10,sizeof(cl_mem),&d_normals)) Fatal("Cannot set kernel parameter d_normals\n");
-
 
    //Run Kernel
    size_t Global[3] = {n,n,n};
@@ -842,21 +871,16 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
 
    // Copy C from device to host (block until done)
    if (clEnqueueReadBuffer(queue,d_density,CL_TRUE,0,N,h_density,0,NULL,NULL)) Fatal("Cannot copy density from device to host\n");
-   if (clEnqueueReadBuffer(queue,d_numTriangles,CL_TRUE,0,N,h_numTriangles,0,NULL,NULL)) Fatal("Cannot copy numTriangles from device to host\n");
-   if (clEnqueueReadBuffer(queue,d_triangles,CL_TRUE,0,NTRI4,h_triangles,0,NULL,NULL)) Fatal("Cannot copy triangles from device to host\n");
-   if (clEnqueueReadBuffer(queue,d_normals,CL_TRUE,0,NTRI3,h_normals,0,NULL,NULL)) Fatal("Cannot copy normals from device to host\n");
 
    //  Free device memory
    clReleaseMemObject(d_xPos);
    clReleaseMemObject(d_yPos);
    clReleaseMemObject(d_zPos);
    clReleaseMemObject(d_density);
-   clReleaseMemObject(d_triangles);
-   clReleaseMemObject(d_numTriangles);
-   clReleaseMemObject(d_normals);
+
 }
 
-/*void triangleCalc(float h_numTriangles[], float h_triangles[], float h_normals[], 
+void triangleCalc(float h_numTriangles[], float h_triangles[], float h_normals[], 
          float h_density[], 
          float cornerPosX, float cornerPosY, float cornerPosZ)
 {
@@ -890,21 +914,18 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
       else
          Fatal("Cannot build program\n%s\n",log);
    }
-   cl_kernel kernel = clCreateKernel(prog,"densityCalc",&err);
+   cl_kernel kernel = clCreateKernel(prog,"triangles",&err);
    if(err) Fatal("Cannot create kernel\n");
 
    //Set parameters for kernel
    if(clSetKernelArg(kernel,0,sizeof(cl_mem),&d_density)) Fatal("Cannot set kernel parameter d_density\n");
-   if(clSetKernelArg(kernel,1,sizeof(cl_mem),&d_xPos)) Fatal("Cannot set kernel parameter d_xPos\n");
-   if(clSetKernelArg(kernel,2,sizeof(cl_mem),&d_yPos)) Fatal("Cannot set kernel parameter d_yPos\n");
-   if(clSetKernelArg(kernel,3,sizeof(cl_mem),&d_zPos)) Fatal("Cannot set kernel parameter d_zPos\n");
-   if(clSetKernelArg(kernel,4,sizeof(float),&cornerPosX)) Fatal("Cannot set kernel parameter x\n");
-   if(clSetKernelArg(kernel,5,sizeof(float),&cornerPosY)) Fatal("Cannot set kernel parameter y\n");
-   if(clSetKernelArg(kernel,6,sizeof(float),&cornerPosZ)) Fatal("Cannot set kernel parameter z\n");
-   if(clSetKernelArg(kernel,7,sizeof(int),&n)) Fatal("Cannot set kernel parameter n\n");
-   if(clSetKernelArg(kernel,8,sizeof(cl_mem),&d_numTriangles)) Fatal("Cannot set kernel parameter d_numTriangles\n");
-   if(clSetKernelArg(kernel,9,sizeof(cl_mem),&d_triangles)) Fatal("Cannot set kernel parameter d_triangles\n");
-   if(clSetKernelArg(kernel,10,sizeof(cl_mem),&d_normals)) Fatal("Cannot set kernel parameter d_normals\n");
+   if(clSetKernelArg(kernel,1,sizeof(float),&cornerPosX)) Fatal("Cannot set kernel parameter x\n");
+   if(clSetKernelArg(kernel,2,sizeof(float),&cornerPosY)) Fatal("Cannot set kernel parameter y\n");
+   if(clSetKernelArg(kernel,3,sizeof(float),&cornerPosZ)) Fatal("Cannot set kernel parameter z\n");
+   if(clSetKernelArg(kernel,4,sizeof(int),&n)) Fatal("Cannot set kernel parameter n\n");
+   if(clSetKernelArg(kernel,5,sizeof(cl_mem),&d_numTriangles)) Fatal("Cannot set kernel parameter d_numTriangles\n");
+   if(clSetKernelArg(kernel,6,sizeof(cl_mem),&d_triangles)) Fatal("Cannot set kernel parameter d_triangles\n");
+   if(clSetKernelArg(kernel,7,sizeof(cl_mem),&d_normals)) Fatal("Cannot set kernel parameter d_normals\n");
 
 
    //Run Kernel
@@ -917,18 +938,268 @@ void densityCalc(float h_numTriangles[], float h_triangles[], float h_normals[],
    if (clReleaseProgram(prog)) Fatal("Cannot release program\n");
 
    // Copy C from device to host (block until done)
-   if (clEnqueueReadBuffer(queue,d_density,CL_TRUE,0,N,h_density,0,NULL,NULL)) Fatal("Cannot copy density from device to host\n");
-   if (clEnqueueReadBuffer(queue,d_numTriangles,CL_TRUE,0,N,h_numTriangles,0,NULL,NULL)) Fatal("Cannot copy density from device to host\n");
-   if (clEnqueueReadBuffer(queue,d_triangles,CL_TRUE,0,N,h_triangles,0,NULL,NULL)) Fatal("Cannot copy density from device to host\n");
-   if (clEnqueueReadBuffer(queue,d_normals,CL_TRUE,0,N,h_normals,0,NULL,NULL)) Fatal("Cannot copy density from device to host\n");
+   if (clEnqueueReadBuffer(queue,d_numTriangles,CL_TRUE,0,N,h_numTriangles,0,NULL,NULL)) Fatal("Cannot copy numTriangles from device to host\n");
+   if (clEnqueueReadBuffer(queue,d_triangles,CL_TRUE,0,NTRI4,h_triangles,0,NULL,NULL)) Fatal("Cannot copy triangles from device to host\n");
+   if (clEnqueueReadBuffer(queue,d_normals,CL_TRUE,0,NTRI3,h_normals,0,NULL,NULL)) Fatal("Cannot copy normals from device to host\n");
 
    //  Free device memory
-   clReleaseMemObject(d_xPos);
-   clReleaseMemObject(d_yPos);
-   clReleaseMemObject(d_zPos);
    clReleaseMemObject(d_density);
+   clReleaseMemObject(d_triangles);
+   clReleaseMemObject(d_numTriangles);
+   clReleaseMemObject(d_normals);
 }
-*/
+
+
+/*
+ *  Draw a cube
+ */
+static void Cube(void)
+{
+   //  Front
+   glColor3f(1,0,0);
+   glBegin(GL_QUADS);
+   glNormal3f( 0, 0,+1);
+   glTexCoord2f(0,0); glVertex3f(-1,-1,+1);
+   glTexCoord2f(1,0); glVertex3f(+1,-1,+1);
+   glTexCoord2f(1,1); glVertex3f(+1,+1,+1);
+   glTexCoord2f(0,1); glVertex3f(-1,+1,+1);
+   glEnd();
+   //  Back
+   glColor3f(0,0,1);
+   glBegin(GL_QUADS);
+   glNormal3f( 0, 0,-1);
+   glTexCoord2f(0,0); glVertex3f(+1,-1,-1);
+   glTexCoord2f(1,0); glVertex3f(-1,-1,-1);
+   glTexCoord2f(1,1); glVertex3f(-1,+1,-1);
+   glTexCoord2f(0,1); glVertex3f(+1,+1,-1);
+   glEnd();
+   //  Right
+   glColor3f(1,1,0);
+   glBegin(GL_QUADS);
+   glNormal3f(+1, 0, 0);
+   glTexCoord2f(0,0); glVertex3f(+1,-1,+1);
+   glTexCoord2f(1,0); glVertex3f(+1,-1,-1);
+   glTexCoord2f(1,1); glVertex3f(+1,+1,-1);
+   glTexCoord2f(0,1); glVertex3f(+1,+1,+1);
+   glEnd();
+   //  Left
+   glColor3f(0,1,0);
+   glBegin(GL_QUADS);
+   glNormal3f(-1, 0, 0);
+   glTexCoord2f(0,0); glVertex3f(-1,-1,-1);
+   glTexCoord2f(1,0); glVertex3f(-1,-1,+1);
+   glTexCoord2f(1,1); glVertex3f(-1,+1,+1);
+   glTexCoord2f(0,1); glVertex3f(-1,+1,-1);
+   glEnd();
+   //  Top
+   glColor3f(0,1,1);
+   glBegin(GL_QUADS);
+   glNormal3f( 0,+1, 0);
+   glTexCoord2f(0,0); glVertex3f(-1,+1,+1);
+   glTexCoord2f(1,0); glVertex3f(+1,+1,+1);
+   glTexCoord2f(1,1); glVertex3f(+1,+1,-1);
+   glTexCoord2f(0,1); glVertex3f(-1,+1,-1);
+   glEnd();
+   //  Bottom
+   glColor3f(1,0,1);
+   glBegin(GL_QUADS);
+   glNormal3f( 0,-1, 0);
+   glTexCoord2f(0,0); glVertex3f(-1,-1,-1);
+   glTexCoord2f(1,0); glVertex3f(+1,-1,-1);
+   glTexCoord2f(1,1); glVertex3f(+1,-1,+1);
+   glTexCoord2f(0,1); glVertex3f(-1,-1,+1);
+   glEnd();
+}
+
+/*
+ *  OpenGL (GLUT) calls this routine to display the scene
+ */
+void display()
+{
+   const double len=2.0;  //  Length of axes
+
+   //  Erase the window and the depth buffer
+   glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+   //  Enable Z-buffering in OpenGL
+   glEnable(GL_DEPTH_TEST);
+
+   //  Undo previous transformations
+   glLoadIdentity();
+   //  Perspective - set eye position
+   if (proj)
+   {
+      double Ex = -2*dim*Sin(th)*Cos(ph);
+      double Ey = +2*dim        *Sin(ph);
+      double Ez = +2*dim*Cos(th)*Cos(ph);
+      gluLookAt(Ex,Ey,Ez , 0,0,0 , 0,Cos(ph),0);
+   }
+   //  Orthogonal - set world orientation
+   else
+   {
+      glRotatef(ph,1,0,0);
+      glRotatef(th,0,1,0);
+   }
+
+   //  Select shader (0 => no shader)
+   glUseProgram(shader[mode]);
+
+   //  Export time to uniform variable
+   if (mode)
+   {
+      float time = 0.001*glutGet(GLUT_ELAPSED_TIME);
+      int id = glGetUniformLocation(shader[mode],"time");
+      if (id>=0) glUniform1f(id,time);
+   }
+
+   float testverts[]=
+   {
+      0,0,0,10,
+      1,0,0,10,
+      1,1,0,10,
+
+      2,2,0,10,
+      1,2,0,10,
+      1,1,0,10,
+
+      10,10,10,10,
+      10,10,10,10,
+      10,10,10,10
+   };
+
+   //  Draw the model, teapot or cube
+   glColor3f(1,1,0);
+   if (obj==1)
+   {
+      glEnableClientState(GL_VERTEX_ARRAY);
+      //glVertexPointer(3,GL_FLOAT,4*sizeof(float),verteces);
+      //glDrawArrays(GL_TRIANGLES,0,4*3*5*cubeDimPlusEdge*cubeDimPlusEdge*cubeDimPlusEdge);
+      glVertexPointer(3,GL_FLOAT,4*sizeof(float),testverts);
+      glDrawArrays(GL_TRIANGLES,0,36);
+   
+      //glDrawElements(GL_TRIANGLES,3*3*5*cubeDimPlusEdge*cubeDimPlusEdge*cubeDimPlusEdge, GL_UNSIGNED_BYTE, &verteces);
+      glDisableClientState(GL_VERTEX_ARRAY);
+   }
+   else
+      Cube();
+
+   //  No shader for what follows
+   glUseProgram(0);
+
+   //  Draw axes - no lighting from here on
+   glColor3f(1,1,1);
+   if (axes)
+   {
+      glBegin(GL_LINES);
+      glVertex3d(0.0,0.0,0.0);
+      glVertex3d(len,0.0,0.0);
+      glVertex3d(0.0,0.0,0.0);
+      glVertex3d(0.0,len,0.0);
+      glVertex3d(0.0,0.0,0.0);
+      glVertex3d(0.0,0.0,len);
+      glEnd();
+      //  Label axes
+      glRasterPos3d(len,0.0,0.0);
+      Print("X");
+      glRasterPos3d(0.0,len,0.0);
+      Print("Y");
+      glRasterPos3d(0.0,0.0,len);
+      Print("Z");
+   }
+
+   //  Display parameters
+   glWindowPos2i(5,5);
+   Print("Angle=%d,%d  Dim=%.1f Projection=%s %s",
+     th,ph,dim,proj?"Perpective":"Orthogonal",text[mode]);
+
+   //  Render the scene and make it visible
+   ErrCheck("display");
+   glFlush();
+   glutSwapBuffers();
+}
+
+/*
+ *  GLUT calls this routine when an arrow key is pressed
+ */
+void special(int key,int xch,int ych)
+{
+   //  Right arrow key - increase angle by 5 degrees
+   if (key == GLUT_KEY_RIGHT)
+      th += 5;
+   //  Left arrow key - decrease angle by 5 degrees
+   else if (key == GLUT_KEY_LEFT)
+      th -= 5;
+   //  Up arrow key - increase elevation by 5 degrees
+   else if (key == GLUT_KEY_UP)
+      ph += 5;
+   //  Down arrow key - decrease elevation by 5 degrees
+   else if (key == GLUT_KEY_DOWN)
+      ph -= 5;
+   //  PageUp key - increase dim
+   else if (key == GLUT_KEY_PAGE_DOWN)
+      dim += 0.1;
+   //  PageDown key - decrease dim
+   else if (key == GLUT_KEY_PAGE_UP && dim>1)
+      dim -= 0.1;
+   //  Keep angles to +/-360 degrees
+   th %= 360;
+   ph %= 360;
+   //  Update projection
+   Project(proj?fov:0,asp,dim);
+   //  Tell GLUT it is necessary to redisplay the scene
+   glutPostRedisplay();
+}
+
+/*
+ *  GLUT calls this routine when a key is pressed
+ */
+void key(unsigned char ch,int xch,int ych)
+{
+   //  Exit on ESC
+   if (ch == 27)
+      exit(0);
+   //  Reset view angle
+   else if (ch == '0')
+      th = ph = 0;
+   //  Toggle axes
+   else if (ch == 'a' || ch == 'A')
+      axes = 1-axes;
+   //  Toggle projection type
+   else if (ch == 'p' || ch == 'P')
+      proj = 1-proj;
+   //  Toggle objects
+   else if (ch == 'o' || ch == 'O')
+      obj = (obj+1)%2;
+   //  Cycle modes
+   else if (ch == 'm' || ch == 'M')
+      mode = (mode+1)%3;
+   //  Reproject
+   Project(proj?fov:0,asp,dim);
+   //  Tell GLUT it is necessary to redisplay the scene
+   glutPostRedisplay();
+}
+
+/*
+ *  GLUT calls this routine when the window is resized
+ */
+void reshape(int width,int height)
+{
+   //  Ratio of the width to the height of the window
+   asp = (height>0) ? (double)width/height : 1;
+   //  Set the viewport to the entire window
+   glViewport(0,0, width,height);
+   //  Set projection
+   Project(proj?fov:0,asp,dim);
+}
+
+/*
+ *  GLUT calls this routine every 50ms
+ */
+void timer(int k)
+{
+   glutPostRedisplay();
+   glutTimerFunc(50,timer,0);
+}
+
 /*
  *  main
  */
@@ -937,15 +1208,12 @@ int main(int argc, char* argv[])
   
    int verbose=0;
  
-
    //  Initialize GPU
    int Mw = InitGPU(verbose);
    cout << "Max Work group size is " << Mw << endl;
  
-
    //Start other calculation
    cout << "Now to calculate the density" << endl;
-
    
    //Allocate host memory for density calcs
    int n = cubeDimPlusEdge;
@@ -967,18 +1235,52 @@ int main(int argc, char* argv[])
    printMatrix(h_yPos, n);
    generateBlockSide(h_zPos);
    printMatrix(h_zPos, n);
-   
+
    //Perform density calculation
-   densityCalc(h_numTriangles, h_triangles, h_normals, h_density,h_xPos,h_yPos,h_zPos,0,0,0);
-   cout << "here" << endl;
+   densityCalc(h_density,h_xPos,h_yPos,h_zPos,0,0,0);
+
    //Print out the density
    printMatrixInSmallestIncs(h_density, n*n*n, n);
+
+   //Perform triangle calculation with the density cubes
+   triangleCalc(h_numTriangles, h_triangles, h_normals, 
+                  h_density, 
+                  0, 0, 0);
+
+   //Perform the 
+   verteces = h_triangles;
    printTriangleMatrix(h_triangles);
    cout <<endl;
-   printMatrix(h_triangles, 4*3*5*n*n*n);
+   printMatrixInSmallestIncs(h_numTriangles, n*n*n, n);
    cout <<endl;
-   printTriangleMatrixIndeces();
+   //printTriangleMatrixIndeces();
    
+///DRAWING///////////////////////////////////////////////////////////
+  //  Initialize GLUT
+   glutInit(&argc,argv);
+   //  Request double buffered, true color window with Z buffering at 600x600
+   glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
+   glutInitWindowSize(600,600);
+   glutCreateWindow("Simple Shader");
+#ifdef USEGLEW
+   //  Initialize GLEW
+   if (glewInit()!=GLEW_OK) Fatal("Error initializing GLEW\n");
+   if (!GLEW_VERSION_2_0) Fatal("OpenGL 2.0 not supported\n");
+#endif
+   //  Set callbacks
+   glutDisplayFunc(display);
+   glutReshapeFunc(reshape);
+   glutSpecialFunc(special);
+   glutKeyboardFunc(key);
+   timer(1);
+
+   //  Create Shader Programs
+   shader[1] = CreateShaderProg("simple.vert","simple.frag");
+   shader[2] = CreateShaderProg("basic.vert","basic.frag");
+   //  Pass control to GLUT so it can interact with the user
+   ErrCheck("init");
+   glutMainLoop();
+ 
 
    free(h_xPos);
    free(h_yPos);
@@ -987,7 +1289,6 @@ int main(int argc, char* argv[])
    free(h_triangles);
    free(h_normals);
    free(h_numTriangles);
-
 
    //  Done
    return 0;

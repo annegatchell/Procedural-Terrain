@@ -11,7 +11,7 @@ LIBS=-lglut -lGLU -lOpenCL
 #  Executables
 #vortex:vortex.o CSCIx239.a
 #	g++ -Wall -O3 -o $@ $^ $(LIBS)
-agatchell_final:agatchell_final.o
+agatchell_final:agatchell_final.o CSCIx239.a
 	g++ -Wall -O3 -o $@ -I/opt/AMDAPP/include $^ $(LIBS)
 
 #  Main target
@@ -35,20 +35,20 @@ clean:
 	rm -f $(EX) *.o *.a
 
 #  Create archive (include glWindowPos if you need it)
-#CSCIx239.a:fatal.o loadtexbmp.o print.o project.o errcheck.o object.o fps.o elapsed.o shader.o noise.o
-#	ar -rcs CSCIx239.a $^
+CSCIx239.a:fatal.o loadtexbmp.o print.o project.o errcheck.o object.o fps.o elapsed.o shader.o noise.o
+	ar -rcs CSCIx239.a $^
 
-#errcheck.o: errcheck.c CSCIx239.h
-#fatal.o: fatal.c CSCIx239.h
-#loadtexbmp.o: loadtexbmp.c CSCIx239.h
-#main.o: main.cpp CSCIx239.h
-#object.o: object.c CSCIx239.h
-#print.o: print.c CSCIx239.h
-#project.o: project.c CSCIx239.h
-#fps.o: fps.c CSCIx239.h
-#elapsed.o: elapsed.c CSCIx239.h
-#shader.o: shader.c CSCIx239.h
-#noise.o: noise.c CSCIx239.h
+errcheck.o: errcheck.c CSCIx239.h
+fatal.o: fatal.c CSCIx239.h
+loadtexbmp.o: loadtexbmp.c CSCIx239.h
+agatchell_final.o: agatchell_final.cpp CSCIx239.h
+object.o: object.c CSCIx239.h
+print.o: print.c CSCIx239.h
+project.o: project.c CSCIx239.h
+fps.o: fps.c CSCIx239.h
+elapsed.o: elapsed.c CSCIx239.h
+shader.o: shader.c CSCIx239.h
+noise.o: noise.c CSCIx239.h
 
 
 #  Obligatory UNIX inside joke
