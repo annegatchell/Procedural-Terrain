@@ -20,8 +20,8 @@
 
 using namespace std;
 
-#define cubeDim 2
-#define cubeDimPlusEdge 3
+#define cubeDim 3
+#define cubeDimPlusEdge 4
 
 
 
@@ -619,9 +619,14 @@ const char* densitySource =
 "  return ret;\n"
 " }\n"
 
+"int a3dto1d(int i, int j, int k, int n)\n"
+"{\n"
+"  return (k+n*j+n*n*i);\n"
+"}\n"
+
 "float densityFunction(float x, float y, float z)\n"
 "{\n"
-"  float temp = (y-0.5);\n"
+"  float temp = (y-0.5)+0.5*x;\n"
 "  return temp;\n"
 "}\n"
 
@@ -666,6 +671,8 @@ const char* densitySource =
 "  float4 actualPos = (float4) (x,y,z,0.0f);\n"
 
 "  density[k + j*n + i*n*n] = densityFunction(actualX, actualY, actualZ);\n"
+
+"  "
 "}\n"
 
 "__kernel void triangles(__global float density[], "
@@ -684,15 +691,16 @@ const char* densitySource =
 "  float actualZ = transformZ(k, z, nEdges);\n"
 "  float4 actualPos = (float4) (x,y,z,0.0f);\n"
 
+
 "  int i0,i1,i2,i3,i4,i5,i6,i7;\n"
-"  i0 = k + j*nEdges + i*nEdges*nEdges;\n"
-"  i1 = (k+1) + j*nEdges + i*nEdges*nEdges;\n"
-"  i2 = (k+1) + j*nEdges + (i+1)*nEdges*nEdges;\n"
-"  i3 = k + j*nEdges + (i+1)*nEdges*nEdges;\n"
-"  i4 = k + (j+1)*nEdges + i*nEdges*nEdges;\n"
-"  i5 = (k+1) + (j+1)*nEdges + i*nEdges*nEdges;\n"
-"  i6 = (k+1) + (j+1)*nEdges + (i+1)*nEdges*nEdges;\n"
-"  i7 = k + (j+1)*n +(i+1)*nEdges*nEdges;\n"
+"  i0 = a3dto1d(i,j,k,nEdges);\n"
+"  i1 = a3dto1d(i,j,k+1,nEdges);\n"
+"  i2 = a3dto1d(i+1,j,k+1,nEdges);\n"
+"  i3 = a3dto1d(i+1,j,k,nEdges);\n"
+"  i4 = a3dto1d(i,j+1,k,nEdges);\n"
+"  i5 = a3dto1d(i,j+1,k+1,nEdges);\n"
+"  i6 = a3dto1d(i+1,j+1,k+1,nEdges);\n"
+"  i7 = a3dto1d(i+1,j+1,k,nEdges);\n"
 
 "  float4 p0,p1,p2,p3,p4,p5,p6,p7;\n"
 "  p0 = transform((float4)(i, j, k, 0.0f), actualPos, n);\n"
@@ -707,7 +715,6 @@ const char* densitySource =
 "  int numberOfTrianglesInThisWorkItem = 0;\n"
 "  float4 empty = (float4) {0.0f,0.0f,0.0f,0.0f};\n"
 "  float4 vertlist[12];\n"
-
 "  float4 triangleArrays[5][3];\n"
 "  unsigned int cubeindex = 0;\n"
 "  float isolevel = 0;\n"
@@ -744,14 +751,17 @@ const char* densitySource =
    "for(int c = 0; c<12;c++)\n"
       "{vertlist[c] = empty;}\n"
 
-   "debug[8*(k+j*n+i*n*n)+0] = 999;//i0;\n"
-   "debug[8*(k+j*n+i*n*n)+1] = i1;\n"
-   "debug[8*(k+j*n+i*n*n)+2] = i2;\n"
-   "debug[8*(k+j*n+i*n*n)+3] = i3;\n"
-   "debug[8*(k+j*n+i*n*n)+4] = i4;\n"
-   "debug[8*(k+j*n+i*n*n)+5] = i5;\n"
-   "debug[8*(k+j*n+i*n*n)+6] = i6;\n"
-   "debug[8*(k+j*n+i*n*n)+7] = i7;\n"
+   "debug[8*a3dto1d(i,j,k,n)] = density[i0];//i0;\n"
+   "debug[8*a3dto1d(i,j,k,n)+1] = density[i1];//density[i1];\n"
+   "debug[8*a3dto1d(i,j,k,n)+2] = density[i2];//density[i2];\n"
+   "debug[8*a3dto1d(i,j,k,n)+3] = density[i3];\n"
+   "debug[8*a3dto1d(i,j,k,n)+4] = density[i4];\n"
+   "debug[8*a3dto1d(i,j,k,n)+5] = density[i5];\n"
+   "debug[8*a3dto1d(i,j,k,n)+6] = density[i6];\n"
+   "debug[8*a3dto1d(i,j,k,n)+7] = density[i7];\n"
+
+   /*"for(int i=0;i<n*n*n*8;i++){\n"
+   " debug[i] = i;}\n"*/
 //If the voxel isn't hanging off the edge, find the vertices
    "if(i<=n && j<=n && k<=n)\n"
    "{\n"
@@ -910,11 +920,11 @@ void triangleCalc(float h_numTriangles[], float h_triangles[], float h_normals[]
    int NTRI3 = cubeDim*cubeDim*cubeDim*5*3*3*sizeof(float);
    int NTRI4 = cubeDim*cubeDim*cubeDim*5*4*3*sizeof(float);
    int nvox = cubeDim;
-   int debugDim = cubeDim*cubeDim*cubeDim*8;
+   int debugDim = cubeDim*cubeDim*cubeDim*8*sizeof(float);
 
    //Allocate device memory and copy A&B from host to device
    cl_int err;
-   cl_mem d_density = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,n,h_density,&err);
+   cl_mem d_density = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,N,h_density,&err);
    if(err) Fatal("Cannot create and copy density from host to device\n");
 
    //Allocate device memory for C on device
@@ -928,7 +938,7 @@ void triangleCalc(float h_numTriangles[], float h_triangles[], float h_normals[]
    if(err) Fatal("Cannot create normals on device, sad day indeed\n");
    cl_mem d_test = clCreateBuffer(context, CL_MEM_WRITE_ONLY,NTRI4,NULL,&err);
    if(err) Fatal("Cannot create test on device, sad day indeed\n");
-
+cout << "debug dim " << debugDim << endl;
    //Compile kernel
    cl_program prog = clCreateProgramWithSource(context,1,&densitySource,0,&err);
    if(err) Fatal("Cannot create density program on device");
@@ -1288,8 +1298,12 @@ int main(int argc, char* argv[])
    densityCalc(h_density,h_xPos,h_yPos,h_zPos,0,0,0);
 
    //Print out the density
-  // printMatrixInSmallestIncs(h_density, n*n*n, n);
+   printMatrixInSmallestIncs(h_density, n*n*n, n);
 
+   float testArray[n*n*n];
+   for(int i=0;i<n*n*n;i++){
+      testArray[i]=i;
+   }
    //Perform triangle calculation with the density cubes
    triangleCalc(h_numTriangles, h_triangles, h_normals, 
                   h_density, 
@@ -1303,6 +1317,10 @@ int main(int argc, char* argv[])
    cout <<endl;
    //printTriangleMatrixIndeces();
    printMatrixInSmallestIncs(h_debug, 8*cubeDim*cubeDim*cubeDim, 8);
+   cout << endl << endl;
+
+   
+   //cout << h_test[0].x << h_test[0].y << h_test[0].z << h_test[0].w;
 ///DRAWING///////////////////////////////////////////////////////////
   //  Initialize GLUT
    glutInit(&argc,argv);
@@ -1337,6 +1355,7 @@ int main(int argc, char* argv[])
    free(h_triangles);
    free(h_normals);
    free(h_numTriangles);
+   free(h_test);
 
    //  Done
    return 0;
