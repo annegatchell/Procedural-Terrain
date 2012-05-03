@@ -4,6 +4,7 @@
 #include "CSCIx239.h"
 
 #include <iostream>
+#include <vector>;
 
 #include <unistd.h>
 #include <math.h>
@@ -38,7 +39,69 @@ double dim=3.0;   //  Size of world
 int model;        //  Model display list
 int shader[] = {0,0,0}; //  Shader program
 char* text[] = {"No Shader","Simple Shader","Basic Shader"};
+
+
+typedef struct
+{
+   float x;
+   float y;
+   float z;
+} float3;
+
+typedef struct
+{
+   float x;
+   float y;
+   float z;
+   float w;
+} float4;
+
+typedef struct
+{
+   float4 coordAmb;
+   float4 normal;
+} rockVertex;
+
+typedef struct
+{
+   rockVertex rv1;
+   rockVertex rv2;
+   rockVertex rv3;
+} triangle;
+
+typedef struct
+{
+   float3 coordAmb;
+   float3 normal;
+} rockVertex3;
+
+typedef struct
+{
+   rockVertex3 rv1;
+   rockVertex3 rv2;
+   rockVertex3 rv3;
+} triangle3;
+
+
+
+typedef struct
+{
+   float3 rv1;
+   float3 rv2;
+   float3 rv3;  
+} triangleVert;
+
+typedef struct
+{
+   float3 n1;
+   float3 n2;
+   float3 n3;
+} triangleNorms;
+
 float* verteces;
+vector<triangle>* trianglePtr;
+int numTriangles;
+
 #define numVoxels
 
 
@@ -66,13 +129,27 @@ float* verteces;
    t0 = t;
    return s;
 }*/
-struct float4
+
+
+int getRidOfBogusTriangles(vector<triangle> * newTris, triangle rockTriangles[], float triangleCounts[], int rockTrianglesSize, int triCountSize)
 {
-   float x;
-   float y;
-   float z;
-   float w;
-};
+   int totalTriangles = 0;
+   for(int i=0;i<triCountSize;i++)
+   {
+      totalTriangles += triangleCounts[i];
+      if(triangleCounts[i]>0)
+      {
+         for(int j=0;j<triangleCounts[i];j++)
+         {
+          newTris->push_back(rockTriangles[i*5+j]);
+         }
+      }
+     
+   }
+   
+   return totalTriangles;
+
+}
 
 void printMatrix(float x[], int dim)
 {
@@ -80,6 +157,69 @@ void printMatrix(float x[], int dim)
       cout << "i " << x[i] << " ";
    cout << endl;
 }
+
+void printRockTriangles(triangle rockTriangles[], int dim)
+{
+   for(int i=0;i<dim; i++)
+   {
+      //cout << "tri"<<i<<": " <<endl;
+      if(!(i%5)) cout <<endl;
+      cout <<"{";
+      cout <<"x "<<rockTriangles[i].rv1.coordAmb.x<<" ";
+      cout <<"y "<<rockTriangles[i].rv1.coordAmb.y<<" ";
+      cout <<"z "<<rockTriangles[i].rv1.coordAmb.w<<" ";
+      cout <<"a "<<rockTriangles[i].rv1.coordAmb.w<<" ";
+      
+      cout<<"}{";
+
+      cout <<"x "<<rockTriangles[i].rv2.coordAmb.x<<" ";
+      cout <<"y "<<rockTriangles[i].rv2.coordAmb.y<<" ";
+      cout <<"z "<<rockTriangles[i].rv2.coordAmb.z<<" ";
+      cout <<"z "<<rockTriangles[i].rv2.coordAmb.w<<" ";
+
+      cout<<"}{";
+      
+      cout <<"x "<<rockTriangles[i].rv3.coordAmb.x<<" ";
+      cout <<"y "<<rockTriangles[i].rv3.coordAmb.y<<" ";
+      cout <<"z "<<rockTriangles[i].rv3.coordAmb.z<<" ";
+      cout <<"a "<<rockTriangles[i].rv3.coordAmb.w;
+      cout<<"}";
+      cout<<endl;
+      
+   }
+}
+void printRockTriangleVector(vector<triangle> * newTris,int totalTriangles)
+{
+   cout << "in func"<<endl;
+   for(int i=0;i<totalTriangles; i++)
+   {
+      cout << "tri"<<i<<":" <<endl;
+      cout <<"{";
+      cout <<"x "<<(*newTris)[i].rv1.coordAmb.x<<" ";
+      cout <<"y "<<(*newTris)[i].rv1.coordAmb.y<<" ";
+      cout <<"z "<<(*newTris)[i].rv1.coordAmb.w<<" ";
+      cout <<"a "<<(*newTris)[i].rv1.coordAmb.w<<" ";
+      
+      cout<<"}{";
+
+      cout <<"x "<<(*newTris)[i].rv2.coordAmb.x<<" ";
+      cout <<"y "<<(*newTris)[i].rv2.coordAmb.y<<" ";
+      cout <<"z "<<(*newTris)[i].rv2.coordAmb.z<<" ";
+      cout <<"z "<<(*newTris)[i].rv2.coordAmb.w<<" ";
+
+      cout<<"}{";
+      
+      cout <<"x "<<(*newTris)[i].rv3.coordAmb.x<<" ";
+      cout <<"y "<<(*newTris)[i].rv3.coordAmb.y<<" ";
+      cout <<"z "<<(*newTris)[i].rv3.coordAmb.z<<" ";
+      cout <<"a "<<(*newTris)[i].rv3.coordAmb.w;
+      cout<<"}";
+      cout<<endl;
+      
+   }
+
+}
+
 
 void printMatrixInSmallestIncs(float x[], int dim, int smallest)
 {
@@ -593,6 +733,18 @@ const char* densitySource =
 "{0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},"
 "{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}};\n"
 
+"typedef struct \n"
+"{\n"
+   "float4 coordAmb;\n"
+   "float4 normal;\n"
+"} rockVertex;\n"
+
+"typedef struct \n"
+"{\n"
+   "rockVertex rv1;\n"
+   "rockVertex rv2;\n"
+   "rockVertex rv3;\n"
+"} triangle;\n"
 
 "float transformX(float xOnBlock, float xPos, float n)\n"
 "{\n"
@@ -678,7 +830,7 @@ const char* densitySource =
 "__kernel void triangles(__global float density[], "
                           " const float x, const float y, const float z, const unsigned int nEdges,"
                            "__global float numTriangles[],__global float triangles[],__global float normals[],"
-                           "unsigned int n, __global float debug[], __global float4 test[])\n"
+                           "unsigned int n, __global float debug[], __global triangle rockTriangles[])\n"
 "{\n"
 //nEdges = 4
 //n = 3
@@ -703,14 +855,14 @@ const char* densitySource =
 "  i7 = a3dto1d(i+1,j+1,k,nEdges);\n"
 
 "  float4 p0,p1,p2,p3,p4,p5,p6,p7;\n"
-"  p0 = transform((float4)(i, j, k, 0.0f), actualPos, n);\n"
-"  p1 = transform((float4)(i, j, k+1, 0.0f), actualPos, n);\n"
-"  p2 = transform((float4)(i+1, j, k+1, 0.0f), actualPos, n);\n"
-"  p3 = transform((float4)(i+1, j, k, 0.0f), actualPos, n);\n"
-"  p4 = transform((float4)(i, j+1, k, 0.0f), actualPos, n);\n"
-"  p5 = transform((float4)(i, j+1, k+1, 0.0f), actualPos, n);\n"
-"  p6 = transform((float4)(i+1, j+1, k+1, 0.0f), actualPos, n);\n"
-"  p7 = transform((float4)(i+1, j+1, k, 0.0f), actualPos, n);\n"
+"  p0 = transform((float4)(i, j, k, 0.0f), actualPos, nEdges);\n"
+"  p1 = transform((float4)(i, j, k+1, 0.0f), actualPos, nEdges);\n"
+"  p2 = transform((float4)(i+1, j, k+1, 0.0f), actualPos, nEdges);\n"
+"  p3 = transform((float4)(i+1, j, k, 0.0f), actualPos, nEdges);\n"
+"  p4 = transform((float4)(i, j+1, k, 0.0f), actualPos, nEdges);\n"
+"  p5 = transform((float4)(i, j+1, k+1, 0.0f), actualPos, nEdges);\n"
+"  p6 = transform((float4)(i+1, j+1, k+1, 0.0f), actualPos, nEdges);\n"
+"  p7 = transform((float4)(i+1, j+1, k, 0.0f), actualPos, nEdges);\n"
 
 "  int numberOfTrianglesInThisWorkItem = 0;\n"
 "  float4 empty = (float4) {0.0f,0.0f,0.0f,0.0f};\n"
@@ -743,9 +895,9 @@ const char* densitySource =
 //Initialize triangleArrays
    "for(int i=0;i<5;i++)\n"
    "{\n"
-      "triangleArrays[i][0] = (float4) {0.01, 0.01, 0.01, 0.01};//vertlist[triTable[cubeindex][w  ]];\n"
-      "triangleArrays[i][1] = (float4) {0.01, 0.01, 0.01, 0.01};//vertlist[triTable[cubeindex][w+1]];\n"
-      "triangleArrays[i][2] = (float4) {0.01, 0.01, 0.01, 0.01};//vertlist[triTable[cubeindex][w+2]];\n"
+      "triangleArrays[i][0] = (float4) {99, 99, 99, 99};//vertlist[triTable[cubeindex][w  ]];\n"
+      "triangleArrays[i][1] = (float4) {99, 99, 99, 99};//vertlist[triTable[cubeindex][w+1]];\n"
+      "triangleArrays[i][2] = (float4) {99, 99, 99, 99};//vertlist[triTable[cubeindex][w+2]];\n"
    "}\n"
 //Initialize vertlist
    "for(int c = 0; c<12;c++)\n"
@@ -841,7 +993,23 @@ const char* densitySource =
 "     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+10] = triangleArrays[a][2].z;\n"
 "     triangles[5*3*4*(k+j*n+i*n*n)+3*4*a+11] = triangleArrays[a][2].w;\n"
 "  }\n"
-
+   "for(int a = 0; a < 5; a+=1)\n"
+   "{\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv1.coordAmb.x = triangleArrays[a][0].x;\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv1.coordAmb.y = triangleArrays[a][0].y;\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv1.coordAmb.w = triangleArrays[a][0].z;\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv1.coordAmb.w = triangleArrays[a][0].w;\n"
+      
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv2.coordAmb.x = triangleArrays[a][1].x;\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv2.coordAmb.y = triangleArrays[a][1].y;\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv2.coordAmb.z = triangleArrays[a][1].z;\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv2.coordAmb.w = triangleArrays[a][1].w;\n"
+      
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv3.coordAmb.x = triangleArrays[a][2].x;\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv3.coordAmb.y = triangleArrays[a][2].y;\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv3.coordAmb.z = triangleArrays[a][2].z;\n"
+      "rockTriangles[5*(a3dto1d(i,j,k,n))+a].rv3.coordAmb.w = triangleArrays[a][2].w;\n"
+   "}\n"
 " }\n"; 
 
 
@@ -912,7 +1080,7 @@ void densityCalc(
 
 void triangleCalc(float h_numTriangles[], float h_triangles[], float h_normals[], 
          float h_density[], 
-         float cornerPosX, float cornerPosY, float cornerPosZ, float h_debug[], float4 h_test[])
+         float cornerPosX, float cornerPosY, float cornerPosZ, float h_debug[], triangle h_rockTriangles[], int rockTrisSize)
 {
    // Calculate matrix dimensions
    int n = cubeDimPlusEdge;
@@ -921,6 +1089,7 @@ void triangleCalc(float h_numTriangles[], float h_triangles[], float h_normals[]
    int NTRI4 = cubeDim*cubeDim*cubeDim*5*4*3*sizeof(float);
    int nvox = cubeDim;
    int debugDim = cubeDim*cubeDim*cubeDim*8*sizeof(float);
+
 
    //Allocate device memory and copy A&B from host to device
    cl_int err;
@@ -936,8 +1105,8 @@ void triangleCalc(float h_numTriangles[], float h_triangles[], float h_normals[]
    if(err) Fatal("Cannot create normals on device, sad day indeed\n");
    cl_mem d_debug = clCreateBuffer(context, CL_MEM_WRITE_ONLY,debugDim,NULL,&err);
    if(err) Fatal("Cannot create normals on device, sad day indeed\n");
-   cl_mem d_test = clCreateBuffer(context, CL_MEM_WRITE_ONLY,NTRI4,NULL,&err);
-   if(err) Fatal("Cannot create test on device, sad day indeed\n");
+   cl_mem d_rockTriangles = clCreateBuffer(context, CL_MEM_WRITE_ONLY,rockTrisSize,NULL,&err);
+   if(err) Fatal("Cannot create rockTriangles on device, sad day indeed\n");
 cout << "debug dim " << debugDim << endl;
    //Compile kernel
    cl_program prog = clCreateProgramWithSource(context,1,&densitySource,0,&err);
@@ -964,7 +1133,7 @@ cout << "debug dim " << debugDim << endl;
    if(clSetKernelArg(kernel,7,sizeof(cl_mem),&d_normals)) Fatal("Cannot set kernel parameter d_normals\n");
    if(clSetKernelArg(kernel,8,sizeof(int),&nvox)) Fatal("Cannot set kernel parameter nvox\n");
    if(clSetKernelArg(kernel,9,sizeof(cl_mem),&d_debug)) Fatal("Cannot set debug parameter debug\n");
-   if(clSetKernelArg(kernel,10,sizeof(cl_mem),&d_test)) Fatal("Cannot set debug parameter debug\n");
+   if(clSetKernelArg(kernel,10,sizeof(cl_mem),&d_rockTriangles)) Fatal("Cannot set debug parameter debug\n");
 
    //Run Kernel
    size_t Global[3] = {cubeDim,cubeDim,cubeDim};
@@ -980,7 +1149,7 @@ cout << "debug dim " << debugDim << endl;
    if (clEnqueueReadBuffer(queue,d_triangles,CL_TRUE,0,NTRI4,h_triangles,0,NULL,NULL)) Fatal("Cannot copy triangles from device to host\n");
    if (clEnqueueReadBuffer(queue,d_normals,CL_TRUE,0,NTRI3,h_normals,0,NULL,NULL)) Fatal("Cannot copy normals from device to host\n");
    if (clEnqueueReadBuffer(queue,d_debug,CL_TRUE,0,debugDim,h_debug,0,NULL,NULL)) Fatal("Cannot copy debug from device to host\n");
-   if (clEnqueueReadBuffer(queue,d_test,CL_TRUE,0,debugDim,h_test,0,NULL,NULL)) Fatal("Cannot copy test from device to host\n");
+   if (clEnqueueReadBuffer(queue,d_rockTriangles,CL_TRUE,0,rockTrisSize,h_rockTriangles,0,NULL,NULL)) Fatal("Cannot copy test from device to host\n");
    //  Free device memory
    clReleaseMemObject(d_density);
    clReleaseMemObject(d_triangles);
@@ -1121,16 +1290,89 @@ void display()
 0.01, 0.01, 0.01, 0.01,0.01, 0.01, 0.01, 0.01,0.01, 0.01, 0.01, 0.01
 
    };
+   float4 testverts3[] = 
+   {
+      {0,0,0,10},
+      {1,0,0,10},
+      {1,1,0,10},
+
+      {2,2,0,10},
+      {1,2,0,10},
+      {1,1,0,10}
+
+   };
+
+   triangle testverts4[] = 
+   {
+      {
+      {{0,0,0,10}, {1,1,1,0}},
+      {{1,0,0,10}, {1,1,1,0}},
+      {{1,1,0,10}, {1,1,1,0}}
+      }
+      ,
+      {
+      {{2,2,0,10}, {1,1,1,0}},
+      {{1,2,0,10}, {1,1,1,0}},
+      {{1,1,0,10}, {1,1,1,0}}
+      }
+   };
+
+triangle3 testverts5[] = 
+   {
+      {
+      {{0,0,0}, {1,1,1}},
+      {{1,0,0}, {1,1,1}},
+      {{1,1,0}, {1,1,1}}
+      }
+      ,
+      {
+      {{2,2,0}, {1,1,1}},
+      {{1,2,0}, {1,1,1}},
+      {{1,1,0}, {1,1,1}}
+      }
+   };
+
+float3 testverts6[] = 
+   {
+      {0,0,0},
+      {1,0,0}, 
+      {1,1,0},
+
+      {2,2,0}, 
+      {1,2,0}, 
+      {1,1,0},
+
+      {10,10,100},
+      {10,9,8},
+      {0,10,10}
+      
+   };
+
+triangleVert testverts7[] = 
+   {
+      {{0,0,0},
+      {1,0,0}, 
+      {1,1,0}},
+
+      {{2,2,0}, 
+      {1,2,0}, 
+      {1,1,0}},
+
+      {{10,10,100},
+      {10,9,8},
+      {0,10,10}}
+      
+   };
 
    //  Draw the model, teapot or cube
    glColor3f(1,1,0);
    if (obj==1)
    {
       glEnableClientState(GL_VERTEX_ARRAY);
-      glVertexPointer(3,GL_FLOAT,4*sizeof(float),verteces);
-      glDrawArrays(GL_TRIANGLES,0,4*3*5*cubeDim*cubeDim*cubeDim);
-      //glVertexPointer(3,GL_FLOAT,4*sizeof(float),testverts2);
-      //glDrawArrays(GL_TRIANGLES,0,120);
+      //glVertexPointer(3,GL_FLOAT,8*sizeof(float),trianglePtr);
+      //glDrawArrays(GL_TRIANGLES,0,numTriangles*8);
+      glVertexPointer(3,GL_FLOAT,0,testverts7);
+      glDrawArrays(GL_TRIANGLES,0,18);
    
       //glDrawElements(GL_TRIANGLES,3*3*5*cubeDimPlusEdge*cubeDimPlusEdge*cubeDimPlusEdge, GL_UNSIGNED_BYTE, &verteces);
       glDisableClientState(GL_VERTEX_ARRAY);
@@ -1274,6 +1516,7 @@ int main(int argc, char* argv[])
    //Allocate host memory for density calcs
    int n = cubeDimPlusEdge;
    int N = n*n*n*sizeof(float);
+   int rockTrisSize = cubeDim*cubeDim*cubeDim*5*8*3*sizeof(float);
 
    float* h_xPos = (float*)malloc(n*sizeof(float));
    float* h_yPos = (float*)malloc(n*sizeof(float));
@@ -1283,8 +1526,9 @@ int main(int argc, char* argv[])
    float* h_normals = (float*)malloc(3*3*5*cubeDim*cubeDim*cubeDim*sizeof(float));
    float* h_numTriangles = (float*)malloc(N);
    float* h_debug = (float*)malloc(N*8);
-   float4* h_test = (float4*)malloc(cubeDim*cubeDim*cubeDim*5*4*3*sizeof(float));
-   if (!h_xPos || !h_yPos || !h_zPos || !h_density || !h_triangles || !h_normals || !h_numTriangles) Fatal("Cannot allocate host memory\n");
+   //The rockVertex struct has 8 floats. Each triangle has 3 rockVerteces
+   triangle* h_rockTriangles = (triangle*)malloc(rockTrisSize);
+   if (!h_xPos || !h_yPos || !h_zPos || !h_density || !h_triangles || !h_normals || !h_numTriangles || !h_rockTriangles) Fatal("Cannot allocate host memory\n");
 
    //Initialize x, y, z
    generateBlockSide(h_xPos);
@@ -1307,7 +1551,7 @@ int main(int argc, char* argv[])
    //Perform triangle calculation with the density cubes
    triangleCalc(h_numTriangles, h_triangles, h_normals, 
                   h_density, 
-                  0, 0, 0, h_debug, h_test);
+                  0, 0, 0, h_debug, h_rockTriangles, rockTrisSize);
 
    //Perform the 
    verteces = h_triangles;
@@ -1316,10 +1560,17 @@ int main(int argc, char* argv[])
    printMatrixInSmallestIncs(h_numTriangles, cubeDim*cubeDim*cubeDim, cubeDim);
    cout <<endl;
    //printTriangleMatrixIndeces();
-   printMatrixInSmallestIncs(h_debug, 8*cubeDim*cubeDim*cubeDim, 8);
+   //printMatrixInSmallestIncs(h_debug, 8*cubeDim*cubeDim*cubeDim, 8);
    cout << endl << endl;
+   printRockTriangles(h_rockTriangles,5*cubeDim*cubeDim*cubeDim);
+   vector<triangle> realTriangles;
+   numTriangles = getRidOfBogusTriangles(&realTriangles, h_rockTriangles, h_numTriangles, 5*cubeDim*cubeDim*cubeDim, cubeDim*cubeDim*cubeDim);
+   cout << "total Triangles " << numTriangles<< endl;
+   cout << "realTris in main " << realTriangles[0].rv1.coordAmb.x<<endl;
+   printRockTriangleVector(&realTriangles,numTriangles);
+   trianglePtr = &realTriangles;
 
-   
+
    //cout << h_test[0].x << h_test[0].y << h_test[0].z << h_test[0].w;
 ///DRAWING///////////////////////////////////////////////////////////
   //  Initialize GLUT
@@ -1327,6 +1578,7 @@ int main(int argc, char* argv[])
    //  Request double buffered, true color window with Z buffering at 600x600
    glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
    glutInitWindowSize(600,600);
+   glutInitWindowPosition(1000,100);
    glutCreateWindow("Simple Shader");
 #ifdef USEGLEW
    //  Initialize GLEW
@@ -1355,7 +1607,7 @@ int main(int argc, char* argv[])
    free(h_triangles);
    free(h_normals);
    free(h_numTriangles);
-   free(h_test);
+   free(h_rockTriangles);
 
    //  Done
    return 0;
