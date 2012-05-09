@@ -30,8 +30,11 @@ using namespace std;
 
 int n;       //  Number of bodies
 int N;
+int Bw, Bn;
 int src=0;        //  Offset of first star in source
 int dst=0;        //  Offset of first star in destination
+int one=0;
+int two=0;
 int axes=0;       //  Display axes
 int th=0;         //  Azimuth of view angle
 int ph=0;         //  Elevation of view angle
@@ -39,7 +42,7 @@ double dim=10;    //  Size of universe
 double vel=0.1;   //  Relative speed
 int currentStarSet = 0;
 
-cl_mem d_StarsOld1, d_StarsOld2, d_StarsNew;
+cl_mem d_StarsOld1, d_StarsNew;
 cl_program prog;
 cl_int  err;
 cl_kernel kernel, initKernel;
@@ -56,8 +59,8 @@ typedef struct
    float r,g,b;  //  Color
 }  Star;
 Star* stars=NULL;
-Star* stars2=NULL;
 Star* starsDisplay=NULL;
+Star* tmp = NULL;
 
 
 /*
@@ -163,22 +166,16 @@ int InitGPU(int verbose)
 const char* starSource = ReadText("starMove.cl");
 
 
-void InitStepOnDevice(Star h_StarsNew[],Star h_StarsOld1[],Star h_StarsOld2[], const unsigned int Bw,const unsigned int Bn)
+void StepOnDevice(Star h_StarsNew[],Star h_StarsOld1[], const unsigned int Bw,const unsigned int Bn)
 {
 
-   //  Calculate matrix dimensions
-
    // Allocate device memory and copy StarsOld1 from host to device
-   d_StarsOld1 = clCreateBuffer(context,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,N,h_StarsOld1,&err);
+   d_StarsOld1 = clCreateBuffer(context,CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,N,h_StarsOld1,&err);
    if (err) Fatal("Cannot create and copy StarsOld1 from host to device\n");
-
-   //Allocate device memory for StarsOld2 on device
-   d_StarsOld2 = clCreateBuffer(context,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,N,h_StarsOld2,&err);
-   if (err) Fatal("Cannot create and copy StarsOld2 from host to device\n");
 
    //  Allocate device memory for StarsNew on device
    d_StarsNew = clCreateBuffer(context,CL_MEM_WRITE_ONLY,N,NULL,&err);
-   if (err) Fatal("Cannot create C on device\n");
+   if (err) Fatal("Cannot create StarsNew on device\n");
 
 
    //  Compile kernel
@@ -193,51 +190,29 @@ void InitStepOnDevice(Star h_StarsNew[],Star h_StarsOld1[],Star h_StarsOld2[], c
          Fatal("Cannot build program\n%s\n",log);
    }
 
-   initKernel = clCreateKernel(prog, "initStar", &err);
-   if (err) Fatal("Cannot create initKernel\n");
-
    kernel = clCreateKernel(prog,"starStep",&err);
    if (err) Fatal("Cannot create kernel\n");
 
    //  Set parameters for kernel
 
-   if (clSetKernelArg(initKernel,0,sizeof(cl_mem),&d_StarsOld1)) Fatal("Cannot set kernel parameter StarsOld1\n");
-   if (clSetKernelArg(initKernel,1,sizeof(cl_mem),&d_StarsOld2)) Fatal("Cannot set kernel parameter StarsOld2\n");
-   if (clSetKernelArg(initKernel,2,sizeof(int),&n)) Fatal("Cannot set kernel parameter n\n");
- 
-   if (clSetKernelArg(kernel,0,sizeof(cl_mem),&d_StarsNew)) Fatal("Cannot set kernel parameter StarsNew\n");
-   if (clSetKernelArg(kernel,1,sizeof(int),&n)) Fatal("Cannot set kernel parameter n\n");
+   if (clSetKernelArg(kernel,0,sizeof(cl_mem),&d_StarsNew)) Fatal("Cannot set kernel parameter StarsOld1\n");
+   if (clSetKernelArg(kernel,1,sizeof(cl_mem),&d_StarsOld1)) Fatal("Cannot set kernel parameter StarsOld2\n");
+   if (clSetKernelArg(kernel,2,sizeof(int),&n)) Fatal("Cannot set kernel parameter n\n");
 
 
-   size_t Global[2] = {n,n};
-   size_t Local[2]  = {Bw,Bw};
-   if (clEnqueueNDRangeKernel(queue,initKernel,2,NULL,Global,Local,0,NULL,NULL)) Fatal("Cannot run kernel\n");
-  // return true;
-}
+   size_t Global[2] = {n};
+   size_t Local[2]  = {Bw};
+   if (clEnqueueNDRangeKernel(queue,kernel,1,NULL,Global,Local,0,NULL,NULL)) Fatal("Cannot run kernel\n");
 
-void StepOnDevice(Star h_StarsNew[], const unsigned int Bw,const unsigned int Bn)
-{
- //  Run kernel
-   size_t Global[2] = {n,n};
-   size_t Local[2]  = {Bw,Bw};
-   if (clEnqueueNDRangeKernel(queue,kernel,2,NULL,Global,Local,0,NULL,NULL)) Fatal("Cannot run kernel\n");
-
-
-
-   // Copy C from device to host (block until done)
-   if (clEnqueueReadBuffer(queue,d_StarsNew,CL_TRUE,0,N,h_StarsNew,0,NULL,NULL)) Fatal("Cannot copy StarsNew from device to host\n");
-}
-
-void closeStepOnDevice()
-{
-
-      //  Release kernel and program
+ //  Release kernel and program
    if (clReleaseKernel(kernel)) Fatal("Cannot release kernel\n");
-   if (clReleaseKernel(initKernel)) Fatal("Cannot release kernel\n");
    if (clReleaseProgram(prog)) Fatal("Cannot release program\n");
+
+  // Copy C from device to host (block until done)
+   if (clEnqueueReadBuffer(queue,d_StarsNew,CL_TRUE,0,N,h_StarsNew,0,NULL,NULL)) Fatal("Cannot copy StarsNew from device to host\n");
+
       //  Free device memory
    clReleaseMemObject(d_StarsOld1);
-   clReleaseMemObject(d_StarsOld2);
    clReleaseMemObject(d_StarsNew);
 }
 
@@ -287,6 +262,7 @@ void Step()
    //  Switch source and destination
    src = src?0:n;
    dst = dst?0:n;
+
    //  OpenMP
    if (mode)
       #pragma omp parallel for
@@ -294,8 +270,31 @@ void Step()
          Move(k);
    //  Sequential
    else
-      for (k=0;k<n;k++)
-         Move(k);
+      if(one)
+      {
+         //cout << "pre step on device with first" << endl;
+         StepOnDevice(starsDisplay, stars, Bw, Bn);
+         //cout << "step on device with first" << endl;
+      }
+      else
+      {
+        // cout << stars << endl;
+         tmp = stars;
+         //cout << tmp << endl;
+         stars = starsDisplay;
+         //cout << starsDisplay << endl;
+         //cout << stars << endl;
+         starsDisplay = tmp;
+         //cout << starsDisplay << endl;
+         //cout << "pre step on device with second" << endl;
+         StepOnDevice(starsDisplay, stars, Bw, Bn);
+
+         //cout << "step on device with second" << endl;
+      }
+   one = one?0:1;
+   two = two?0:1;
+      
+
 }
 
 /*
@@ -326,17 +325,16 @@ void InitLoc()
 {
    int k;
    //  Allocate room for twice as many bodies to facilitate ping-pong
-   if (!stars) stars = (Star*)malloc(n*sizeof(Star));
+   if (!stars) stars = (Star*)malloc(N);
    if (!stars) Fatal("Error allocating memory for %d stars in stars\n",n);
 
-   if (!stars) stars2 = (Star*)malloc(n*sizeof(Star));
-   if (!stars) Fatal("Error allocating memory for %d stars in stars2\n",n);
-
-   if (!stars) starsDisplay = (Star*)malloc(n*sizeof(Star));
-   if (!stars) Fatal("Error allocating memory for %d starsDisplay\n",n);
+   if (!starsDisplay) starsDisplay = (Star*)malloc(N);
+   if (!starsDisplay) Fatal("Error allocating memory for %d starsDisplay\n",n);
 
    src = n;
    dst = 0;
+   one = 1;
+   two = 0;
    //  Assign random locations
    for (k=0;k<n;k++)
    {
@@ -360,14 +358,8 @@ void InitLoc()
            stars[k].b = 1.0;
            break;
       }
-      stars[k+n].r = stars[k].r;
-      stars[k+n].g = stars[k].g;
-      stars[k+n].b = stars[k].b;
    }
-   for(k=0; k<n;k++)
-   {
-      stars2[k] = stars[k];
-   }
+ 
 }
 
 /*
@@ -403,13 +395,14 @@ void display()
    //  Draw stars using vertex arrays
    glEnableClientState(GL_VERTEX_ARRAY);
    glEnableClientState(GL_COLOR_ARRAY);
-   glVertexPointer(3,GL_FLOAT,sizeof(Star),&stars[0].x);
-   glColorPointer(3,GL_FLOAT,sizeof(Star),&stars[0].r);
+   glVertexPointer(3,GL_FLOAT,sizeof(Star),&starsDisplay[0].x);
+   glColorPointer(3,GL_FLOAT,sizeof(Star),&starsDisplay[0].r);
    //  Draw all stars from dst count n
-   glDrawArrays(GL_POINTS,dst,n);
+   glDrawArrays(GL_POINTS,0,n);
    //  Disable vertex arrays
    glDisableClientState(GL_VERTEX_ARRAY);
    glDisableClientState(GL_COLOR_ARRAY);
+
 
    //  Unset shader
    if (mode==2)
@@ -480,6 +473,8 @@ void key(unsigned char ch,int x,int y)
 {
    //  Exit on ESC
    if (ch == 27)
+      free(stars);
+      free(starsDisplay);
       exit(0);
    //  Cycle modes
    else if (ch == 'm')
@@ -569,13 +564,13 @@ int main(int argc,char* argv[])
    argv += optind;
       //  Get width and number of blocks
    if (argc!=2) Fatal("Usage: [-v] <block width> <number of blocks>\n");
-   int Bw = atoi(argv[0]);
+   Bw = atoi(argv[0]);
    if (Bw<1) Fatal("Block width out of range %d\n",Bw);
-   int Bn = atoi(argv[1]);
+   Bn = atoi(argv[1]);
    if (Bn<1) Fatal("Number of blocks out of range %d\n",Bn);
    //  Total width is block times number of blocks
    n = Bw*Bn;
-   N = 2*n*sizeof(Star);
+   N = n*sizeof(Star);
    printf("Bw=%d Bn=%d n=%d\n",Bw,Bn,n);
 
       //  Initialize GPU
@@ -599,18 +594,12 @@ int main(int argc,char* argv[])
 
    //  Initialize stars
    InitLoc();
-
-   //Intialize device
-   InitStepOnDevice(starsDisplay, stars, stars2, Bw,Bn);
+   cout << "print" << endl;
    //  Shader program
    shader = CreateShaderProgGeom();
    ErrCheck("init");
    //  Star texture
    LoadTexBMP("star.bmp");
-
-   StepOnDevice(starsDisplay, Bw, Bn);
-
-   closeStepOnDevice();
 
    //  Pass control to GLUT so it can interact with the user
    glutMainLoop();
