@@ -1,9 +1,8 @@
 Anne Gatchell 
 Final Project
 
-compile with make, unless not using AMDAPP for OpenCL
-if using Nvidia, 
-compile with g++ -Wall -o agatchell_final -I/usr/local/cuda/include agatchell_final.cpp -lOpenCL
+compile with make, makefile should be compatible with Nvidia
+with AMD, uncomment the AMDAPP makefile lines in the makefile
 
 
 run with ./agatchell_final
@@ -11,24 +10,33 @@ run with ./agatchell_final
 This project uses OpenCL to perform a Marching Cubes algorithm to compute the triangles needed to 
 draw a terrain described by a density function.
 
-The whole program is contained in one file. 
 
 The main thing of note is the OpenCL program. It takes in a block of 32x32x32 voxels.
-It calculates the density at each corner of each voxel within the block. The program currently
-prints out the density values. 
+It calculates the density at each corner of each voxel within the block.
 
 It then goes on to compare the value at each corner of a voxel to the isotropic surface. If the voxel
 is below 0, it is in the air, and if it is above 0, it is under ground. This series of corner values is 
 bit-wise concatenated into an 8 bit integer which describes which corners are below the isolevel, and
 therefore which edges are crossed by the terrain. 
+
 There is an edgeTable lookup table to look up the edge crossing numbers using the integer. Further, 
 the value from this table is used in a second lookup table to get explicit crossed edges. There could be up 
 to 5 triangles formed in a voxel, and the second lookup table dscribes the triangles in groups of three
 edges. These groups of three are then used to find the verteces on edges of the voxels that describe the
-terrain. This is done by interpolating between the two corner density values of an edge. This is also 
-where the algorithm breaks down. The triangle values are still not reliable.
+terrain. This is done by interpolating between the two corner density values of an edge. 
 
-The OpenCl setup uses a three dimensional buffer setup. There are many auxilary functions included with the
-densitySource kernel.
+The normals are computed by taking the gradient of the denisty function at each vertex.
 
-Planned Extensions: Add normal computations, ambient occulsion computations, and visualization.
+The scene takes some time to render, and the window only pops up when the main batch of voxels has rendered.
+Press o to change from the cube to see the terrain cube.
+Press m twice to see the terrain with lighting.
+
+Normal controls will navigate. Page Up and Down to zoom, arrows to rotate around the scene.
+Esc to exit.
+
+The OpenCl kernels use a three dimensional buffer setup. There are many auxilary functions included with the
+densitySource kernel and the triangles kernel.
+
+Currently, the program uses a noise generation function provided by Apple's developer website. It is not a repeatable 
+noise generation algorithm, though.
+

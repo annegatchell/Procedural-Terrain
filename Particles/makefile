@@ -1,8 +1,8 @@
-EX=agatchell_final
+EX=particle
 
 
 #  Libraries - Linux
-LIBS=-lglut -lGLU -lOpenCL
+LIBS= -lglut -lGLU -lOpenCL
 #  Libraries - OSX
 #LIBS=-framework GLUT -framework OpenGL
 #  Libraries - MinGW
@@ -10,17 +10,17 @@ LIBS=-lglut -lGLU -lOpenCL
 
 #  Executables
 
-#agatchell_final:agatchell_final.o CSCIx239.a
-#	g++ -Wall -O3 -o $@ -I/opt/AMDAPP/include $^ $(LIBS)
-agatchell_final:agatchell_final.o CSCIx239.a
-	g++ -Wall -O3 -o $@ -I/usr/local/cuda/include $^ $(LIBS)
-
+particle:particle.o CSCIx239.a
+	g++ -Wall -O3 -fopenmp -o $@ -I/opt/AMDAPP/include $^ $(LIBS)
+#particle:particle.o CSCIx239.a
+#	g++ -Wall -O3 -o $@ -I/usr/local/cuda/include $^ $(LIBS)
+#ex20:ex20.c CSCIx239.a;  gcc -fopenmp -Wall -o $@ $^ $(LIBS)
 
 #  Generic compile rules
 .c.o:
-	gcc -c -O3 -Wall -I/opt/AMDAPP/include $<
+	gcc -c -O3 -fopenmp -Wall -I/opt/AMDAPP/include $<
 .cpp.o:
-	g++ -c -O3 -Wall -I/opt/AMDAPP/include $<
+	g++ -c -O3 -fopenmp -Wall -I/opt/AMDAPP/include $<
 
 #  Generic compile and link
 #%: %.c CSCIx239.a
@@ -37,7 +37,7 @@ CSCIx239.a:fatal.o loadtexbmp.o print.o project.o errcheck.o object.o fps.o elap
 errcheck.o: errcheck.c CSCIx239.h
 fatal.o: fatal.c CSCIx239.h
 loadtexbmp.o: loadtexbmp.c CSCIx239.h
-agatchell_final.o: agatchell_final.cpp CSCIx239.h
+particle.o: particle.cpp CSCIx239.h
 object.o: object.c CSCIx239.h
 print.o: print.c CSCIx239.h
 project.o: project.c CSCIx239.h
